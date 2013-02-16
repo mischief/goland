@@ -47,4 +47,3 @@ func NewMapChunk() *MapChunk {
 
 	return &ch
 }
-

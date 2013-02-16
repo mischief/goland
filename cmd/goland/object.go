@@ -68,47 +68,4 @@ type Object interface {
 	Renderable
 }
 
-type Unit struct {
-	Pos, Vel Vector
-	Ch       termbox.Cell // character for this object
-	Hp       int
-
-	g *Game // world this unit was created in
-}
-
 var defaultCell = termbox.Cell{Ch: ' ', Fg: termbox.ColorDefault, Bg: termbox.ColorDefault}
-
-func NewUnit(g *Game) Unit {
-	u := Unit{Ch: defaultCell}
-	u.g = g
-
-	return u
-}
-
-func (u *Unit) Move(d Direction) {
-	newpos := u.Pos
-	switch d {
-	case DIR_UP:
-		newpos.Y -= 1
-	case DIR_DOWN:
-		newpos.Y += 1
-	case DIR_LEFT:
-		newpos.X -= 1
-	case DIR_RIGHT:
-		newpos.X += 1
-	}
-
-	if u.g.Map.Tiles[int(newpos.X)][int(newpos.Y)].IsBlocked() {
-		return
-	}
-
-	u.Pos = newpos
-}
-
-func (u *Unit) Update(delta time.Duration) {
-}
-
-func (u *Unit) Draw(g *Game) {
-	x, y := u.Pos.Round()
-	termbox.SetCell(x, y, u.Ch.Ch, u.Ch.Fg, u.Ch.Bg)
-}
