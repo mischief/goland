@@ -18,11 +18,12 @@ const (
 var (
   fpsSamples [64]float64
   currentSample = 0
-  logfile = flag.String("log", "goland.log", "log file")
+  logfile       = flag.String("log", "goland.log", "log file")
+  debug         = flag.Bool("debug", false, "print debugging info")
 )
 
 type Game struct {
-  P           Player
+  P           *Player
 
   Terminal
   logfile     *os.File
@@ -31,10 +32,16 @@ type Game struct {
 
   // unexported
   fps         float64
+
+  Objects []Object
 }
 
 func NewGame() *Game {
   g := Game{}
+
+  g.P = NewPlayer()
+
+  g.Objects = append(g.Objects, g.P)
 
   g.CloseChan = make(chan bool, 1)
 
@@ -114,6 +121,10 @@ func (g *Game) Update(delta time.Duration) {
 
   g.RunInputHandlers()
 
+  for _, o := range g.Objects {
+    o.Update(delta)
+  }
+
 }
 
 func (g *Game) Draw() {
@@ -128,6 +139,8 @@ func (g *Game) Draw() {
 
   g.Terminal.DrawLabel(fpsrect, labelparams, []byte(fmt.Sprintf(" %dx%d ", g.Terminal.Rect.Width, g.Terminal.Rect.Height)))
 
+  for _, o := range g.Objects {
+    o.Draw(g)
   }
 
   //fps := g.CalcFPS(delta)

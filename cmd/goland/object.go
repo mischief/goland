@@ -1,5 +1,10 @@
 package main
 
+import (
+  "time"
+  "github.com/nsf/termbox-go"
+)
+
 type Direction int
 
 const (
@@ -8,10 +13,6 @@ const (
   DIR_LEFT
   DIR_RIGHT
 )
-
-type Vector struct {
-  X, Y float64
-}
 
 type Rectangle struct {
   Left, Top, Bottom, Right float64
@@ -53,20 +54,51 @@ type Moveable interface {
   Move(d Direction)
 }
 
-type Object struct {
-  Pos, Vel Vector
+type Updateable interface {
+  Update(delta time.Duration)
 }
 
-func (o *Object) Move(d Direction) {
+type Renderable interface {
+  Draw(g *Game)
+}
+
+type Object interface {
+  Moveable
+  Updateable
+  Renderable
+}
+
+type Unit struct {
+  Pos, Vel  Vector
+  Ch        termbox.Cell // character for this object
+}
+
+var defaultCell = termbox.Cell{Ch: ' ', Fg: termbox.ColorDefault, Bg: termbox.ColorDefault}
+
+func NewUnit() Unit {
+  u := Unit{Ch: defaultCell}
+
+  return u
+}
+
+func (u *Unit) Move(d Direction) {
   switch d {
   case DIR_UP:
-    o.Pos.Y += 1
+    u.Pos.Y -= 1
   case DIR_DOWN:
-    o.Pos.Y -= 1
+    u.Pos.Y += 1
   case DIR_LEFT:
-    o.Pos.X -= 1
+    u.Pos.X -= 1
   case DIR_RIGHT:
-    o.Pos.X += 1
+    u.Pos.X += 1
   }
+}
+
+func (u *Unit) Update(delta time.Duration) {
+}
+
+func (u *Unit) Draw(g *Game) {
+  x, y := u.Pos.Round()
+  termbox.SetCell(x, y, u.Ch.Ch, u.Ch.Fg, u.Ch.Bg)
 }
 
