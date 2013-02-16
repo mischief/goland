@@ -4,7 +4,9 @@ import (
   "fmt"
   "strings"
   "os"
+  "log"
   "github.com/nsf/termbox-go"
+  "github.com/nsf/tulib"
 )
 
 const (
@@ -12,20 +14,25 @@ const (
   border = "#"
 )
 
+type KeyHandler func(ev termbox.Event)
+
 type Terminal struct {
-  Width, Height int
-  EventChan chan termbox.Event
+  tulib.Buffer
+  EventChan     chan termbox.Event
+
+  runehandlers  map[rune] KeyHandler
+  keyhandlers   map[termbox.Key] KeyHandler
 }
 
-func (t *Terminal) Start() {
+func (t *Terminal) Start() error {
   err := termbox.Init()
   if err != nil {
     panic(err)
   }
 
-  t.Width, t.Height = termbox.Size()
+  t.Buffer = tulib.TermboxBuffer()
 
-  if t.Height < superficialSizeLimit {
+  if t.Rect.Height < superficialSizeLimit {
     fmt.Println("terminal too small")
     t.End()
     os.Exit(1)
@@ -40,8 +47,10 @@ func (t *Terminal) Start() {
     }
   }(t.EventChan)
 
-  termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
+  t.runehandlers  = make(map[rune] KeyHandler)
+  t.keyhandlers   = make(map[termbox.Key] KeyHandler)
 
+  return nil
 }
 
 func (t *Terminal) End() {
@@ -55,6 +64,35 @@ func (t *Terminal) Draw() {
 
 func (t *Terminal) Flush() {
   termbox.Flush()
+}
+
+func (t *Terminal) RunInputHandlers() error {
+  select {
+  case ev := <- t.EventChan:
+    log.Printf("Keypress: %s", tulib.KeyToString(ev.Key, ev.Ch, ev.Mod))
+
+    if ev.Ch != 0 { // this is a character
+      if handler, ok := t.runehandlers[ev.Ch]; ok {
+        handler(ev)
+      }
+    } else {
+      if handler, ok := t.keyhandlers[ev.Key]; ok {
+        handler(ev)
+      }
+    }
+
+  default:
+  }
+
+  return nil
+}
+
+func (t *Terminal) HandleRune(r rune, h KeyHandler) {
+  t.runehandlers[r] = h
+}
+
+func (t *Terminal) HandleKey(k termbox.Key, h KeyHandler) {
+  t.keyhandlers[k] = h
 }
 
 func (t *Terminal) Print(x, y int, fg, bg termbox.Attribute, msg string) {

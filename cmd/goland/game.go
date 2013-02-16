@@ -1,11 +1,13 @@
 package main
 
 import (
+  "fmt"
   "time"
   "flag"
   "os"
   "log"
   "github.com/nsf/termbox-go"
+  "github.com/nsf/tulib"
 )
 
 const (
@@ -84,6 +86,20 @@ func (g *Game) Start() {
   g.logfile = f
 
   g.Terminal.Start()
+
+  g.HandleKey(termbox.KeyEsc, func(ev termbox.Event) { g.CloseChan <- false })
+
+  scale := 2
+
+  g.HandleRune('w', func(_ termbox.Event) { g.P.Move(DIR_UP) })
+  g.HandleRune('a', func(_ termbox.Event) { g.P.Move(DIR_LEFT) })
+  g.HandleRune('s', func(_ termbox.Event) { g.P.Move(DIR_DOWN) })
+  g.HandleRune('d', func(_ termbox.Event) { g.P.Move(DIR_RIGHT) })
+  g.HandleRune('W', func(_ termbox.Event) { for i := 0; i < scale; i++ { g.P.Move(DIR_UP) } })
+  g.HandleRune('A', func(_ termbox.Event) { for i := 0; i < scale; i++ { g.P.Move(DIR_LEFT) } })
+  g.HandleRune('S', func(_ termbox.Event) { for i := 0; i < scale; i++ { g.P.Move(DIR_DOWN) } })
+  g.HandleRune('D', func(_ termbox.Event) { for i := 0; i < scale; i++ { g.P.Move(DIR_RIGHT) } })
+
 }
 
 func (g *Game) End() {
@@ -92,26 +108,34 @@ func (g *Game) End() {
   g.Terminal.End()
 }
 
-func (g *Game) Update(delta time.Duration) bool {
+func (g *Game) Update(delta time.Duration) {
   // update fps
-  g.fps = g.CalcFPS(delta)
+  g.fps = g.calcFPS(delta)
 
-  // poll event channels
-  select {
-  case ev := <- g.EventChan:
-    log.Printf("termbox: %v", ev)
-    // handle term event
-    if ev.Type == termbox.EventKey && ev.Key == termbox.KeyEsc {
-      g.CloseChan <- false
-      return false
-    }
-  default:
-  }
+  g.RunInputHandlers()
 
-  return true
 }
 
-func(g *Game) CalcFPS(delta time.Duration) float64 {
+func (g *Game) Draw() {
+  g.Terminal.Draw()
+
+  labelparams := &tulib.LabelParams{termbox.ColorRed, termbox.ColorBlack, tulib.AlignCenter, '»', false}
+  labelrect   := tulib.Rect{1, 0, 12, 1}
+
+  g.Terminal.DrawLabel(labelrect, labelparams, []byte(fmt.Sprintf(" FPS: %5.2f ", g.fps)))
+
+  fpsrect     := tulib.Rect{14, 0, 9, 1}
+
+  g.Terminal.DrawLabel(fpsrect, labelparams, []byte(fmt.Sprintf(" %dx%d ", g.Terminal.Rect.Width, g.Terminal.Rect.Height)))
+
+  }
+
+  //fps := g.CalcFPS(delta)
+  //g.Printf(0, 0, termbox.ColorRed, termbox.ColorBlack, "FPS: %f", g.fps)
+
+}
+
+func(g *Game) calcFPS(delta time.Duration) float64 {
   fpsSamples[currentSample % NumFPSSamples] = 1.0 / delta.Seconds()
   currentSample++
   fps := 0.0
@@ -125,11 +149,4 @@ func(g *Game) CalcFPS(delta time.Duration) float64 {
   return fps
 }
 
-func (g *Game) Draw() {
-  g.Terminal.Draw()
-
-  //fps := g.CalcFPS(delta)
-  g.Printf(0, 0, termbox.ColorRed, termbox.ColorBlack, "FPS: %f", g.fps)
-
-}
 
