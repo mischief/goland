@@ -6,12 +6,10 @@ import (
 	"github.com/nsf/tulib"
 	"log"
 	"os"
-	"strings"
 )
 
 const (
 	superficialSizeLimit = 24
-	border               = "#"
 )
 
 type KeyHandler func(ev termbox.Event)
@@ -59,7 +57,6 @@ func (t *Terminal) End() {
 
 func (t *Terminal) Draw() {
 	termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
-	t.drawborder()
 }
 
 func (t *Terminal) Flush() {
@@ -107,16 +104,3 @@ func (t *Terminal) Printf(x, y int, fg, bg termbox.Attribute, format string, arg
 	t.Print(x, y, fg, bg, s)
 }
 
-func (t *Terminal) drawborder() {
-	var y int
-
-	t.Print(0, 0, termbox.ColorWhite, termbox.ColorBlack, strings.Repeat(border, t.Width))
-
-	for y = 0; y < t.Height-1; y++ {
-		t.Print(0, y, termbox.ColorWhite, termbox.ColorBlack, border)
-		t.Print(t.Width-1, y, termbox.ColorWhite, termbox.ColorBlack, border)
-	}
-
-	t.Print(0, y, termbox.ColorWhite, termbox.ColorBlack, strings.Repeat(border, t.Width))
-
-}
