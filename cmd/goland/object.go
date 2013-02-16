@@ -1,7 +1,6 @@
 package main
 
 import (
-	"github.com/nsf/termbox-go"
 	"time"
 )
 
@@ -31,11 +30,11 @@ type Rectangle struct {
 	Left, Top, Bottom, Right float64
 }
 
-func (r *Rectangle) inside(v Vector) bool {
+func (r *Rectangle) Inside(v Vector) bool {
 	return v.X >= r.Left && v.X <= r.Right && v.Y >= r.Top && v.Y <= r.Bottom
 }
 
-func (r *Rectangle) intersect(other Rectangle) (out Rectangle) {
+func (r *Rectangle) Intersect(other Rectangle) (out Rectangle) {
 	if r.Left > other.Left {
 		out.Left = r.Left
 	} else {
@@ -81,4 +80,3 @@ type Object interface {
 	Renderable
 }
 
-var defaultCell = termbox.Cell{Ch: ' ', Fg: termbox.ColorDefault, Bg: termbox.ColorDefault}

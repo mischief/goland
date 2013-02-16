@@ -11,6 +11,10 @@ const (
 	DEFAULT_ATTACK_SPEED = 8
 )
 
+var (
+  defaultCell = termbox.Cell{Ch: ' ', Fg: termbox.ColorDefault, Bg: termbox.ColorDefault}
+)
+
 type Unit struct {
 	Pos, Vel Vector
 	Ch       termbox.Cell // character for this object
@@ -43,6 +47,12 @@ func (u *Unit) Move(d Direction) {
 	case DIR_RIGHT:
 		newpos.X += 1
 	}
+
+  // check for a valid position
+  rect := Rectangle{0, 0, u.g.Map.Size.Y-1, u.g.Map.Size.X-1}
+  if ! rect.Inside(newpos) {
+    return
+  }
 
 	if u.g.Map.Tiles[int(newpos.X)][int(newpos.Y)].IsBlocked() {
 		return
