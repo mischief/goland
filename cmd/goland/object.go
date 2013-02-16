@@ -71,27 +71,38 @@ type Object interface {
 type Unit struct {
 	Pos, Vel Vector
 	Ch       termbox.Cell // character for this object
+	Hp       int
+
+	g *Game // world this unit was created in
 }
 
 var defaultCell = termbox.Cell{Ch: ' ', Fg: termbox.ColorDefault, Bg: termbox.ColorDefault}
 
-func NewUnit() Unit {
+func NewUnit(g *Game) Unit {
 	u := Unit{Ch: defaultCell}
+	u.g = g
 
 	return u
 }
 
 func (u *Unit) Move(d Direction) {
+	newpos := u.Pos
 	switch d {
 	case DIR_UP:
-		u.Pos.Y -= 1
+		newpos.Y -= 1
 	case DIR_DOWN:
-		u.Pos.Y += 1
+		newpos.Y += 1
 	case DIR_LEFT:
-		u.Pos.X -= 1
+		newpos.X -= 1
 	case DIR_RIGHT:
-		u.Pos.X += 1
+		newpos.X += 1
 	}
+
+	if u.g.Map.Tiles[int(newpos.X)][int(newpos.Y)].IsBlocked() {
+		return
+	}
+
+	u.Pos = newpos
 }
 
 func (u *Unit) Update(delta time.Duration) {

@@ -9,8 +9,8 @@ type Player struct {
 	Unit // embed
 }
 
-func NewPlayer() *Player {
-	o := NewUnit()
+func NewPlayer(g *Game) *Player {
+	o := NewUnit(g)
 	o.Ch = termbox.Cell{'@', termbox.ColorGreen, termbox.ColorBlack}
 	p := &Player{Unit: o}
 	return p

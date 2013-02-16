@@ -34,16 +34,33 @@ type Game struct {
 	fps float64
 
 	Objects []Object
+
+	Map *MapChunk
 }
 
 func NewGame() *Game {
 	g := Game{}
 
-	g.P = NewPlayer()
+	g.CloseChan = make(chan bool, 1)
+
+	g.Map = NewMapChunk()
+	g.Map.Tiles[30][22].Blocked = true
+	g.Map.Tiles[30][22].SightBlocked = true
+	g.Map.Tiles[30][22].Ch = MAP_WALL
+	g.Map.Tiles[50][22].Blocked = true
+	g.Map.Tiles[50][22].SightBlocked = true
+	g.Map.Tiles[50][22].Ch = MAP_WALL
+
+	g.P = NewPlayer(&g)
+	g.P.Pos = Vector{10, 10}
 
 	g.Objects = append(g.Objects, g.P)
 
-	g.CloseChan = make(chan bool, 1)
+	u := NewUnit(&g)
+	u.Ch.Ch = '@'
+	u.Pos = Vector{15, 15}
+
+	g.Objects = append(g.Objects, &u)
 
 	return &g
 }
@@ -123,8 +140,6 @@ func (g *Game) Start() {
 		}
 	})
 
-	g.P.Pos = Vector{10, 10}
-
 }
 
 func (g *Game) End() {
@@ -146,7 +161,16 @@ func (g *Game) Update(delta time.Duration) {
 }
 
 func (g *Game) Draw() {
-	g.Terminal.Draw()
+	//	g.Terminal.Draw()
+	for x, col := range g.Map.Tiles {
+		for y, tile := range col {
+			if tile.CanSee() {
+				termbox.SetCell(x, y, tile.Ch.Ch, tile.Ch.Fg, tile.Ch.Bg)
+			} else {
+				termbox.SetCell(x, y, tile.Ch.Ch, termbox.ColorBlack, termbox.ColorWhite)
+			}
+		}
+	}
 
 	labelparams := &tulib.LabelParams{termbox.ColorRed, termbox.ColorBlack, tulib.AlignCenter, '»', false}
 	labelrect := tulib.Rect{1, 0, 12, 1}
