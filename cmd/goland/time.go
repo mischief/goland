@@ -31,6 +31,5 @@ func (dt *DeltaTimer) DeltaTime() time.Duration {
 // If DeltaTime is called the first time, the last time is the time DeltaTimer was created.
 // GetDeltaTime does not reset the timer.
 func (dt *DeltaTimer) GetDeltaTime() time.Duration {
-  return time.Since(dt.t)
+	return time.Since(dt.t)
 }
-

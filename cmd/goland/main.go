@@ -1,20 +1,19 @@
 package main
 
 import (
-  "flag"
-  //"flag"
-  //"fmt"
-  //"time"
-  //"os"
+	"flag"
+	//"flag"
+	//"fmt"
+	//"time"
+	//"os"
 
-  //"github.com/nsf/termbox-go"
+	//"github.com/nsf/termbox-go"
 )
 
 func main() {
-  flag.Parse()
+	flag.Parse()
 
-  g := NewGame()
+	g := NewGame()
 
-  g.Run()
+	g.Run()
 }
-
