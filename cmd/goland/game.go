@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"unicode"
 	"github.com/nsf/termbox-go"
 	"github.com/nsf/tulib"
 	"log"
@@ -115,31 +116,21 @@ func (g *Game) Start() {
 
 	scale := 2
 
-	g.HandleRune('w', func(_ termbox.Event) { g.P.Move(DIR_UP) })
-	g.HandleRune('a', func(_ termbox.Event) { g.P.Move(DIR_LEFT) })
-	g.HandleRune('s', func(_ termbox.Event) { g.P.Move(DIR_DOWN) })
-	g.HandleRune('d', func(_ termbox.Event) { g.P.Move(DIR_RIGHT) })
-	g.HandleRune('W', func(_ termbox.Event) {
-		for i := 0; i < scale; i++ {
-			g.P.Move(DIR_UP)
-		}
-	})
-	g.HandleRune('A', func(_ termbox.Event) {
-		for i := 0; i < scale; i++ {
-			g.P.Move(DIR_LEFT)
-		}
-	})
-	g.HandleRune('S', func(_ termbox.Event) {
-		for i := 0; i < scale; i++ {
-			g.P.Move(DIR_DOWN)
-		}
-	})
-	g.HandleRune('D', func(_ termbox.Event) {
-		for i := 0; i < scale; i++ {
-			g.P.Move(DIR_RIGHT)
-		}
-	})
+	// convert to func SetupDirections()
+	for k, v := range CARDINALS {
+		func (c rune, d Direction) {
+			g.HandleRune(c, func(_ termbox.Event) {
+				g.P.Move(d)
+			})
 
+			upperc := unicode.ToUpper(c)
+			g.HandleRune(upperc, func(_ termbox.Event) {
+				for i := 0; i < scale; i++ {
+					g.P.Move(d)
+				}
+			})
+		}(k, v)
+	}
 }
 
 func (g *Game) End() {
