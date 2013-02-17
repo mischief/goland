@@ -115,10 +115,14 @@ func (g *Game) Start() {
 
 	scale := 2
 
-	g.HandleRune('w', func(_ termbox.Event) { g.P.Move(DIR_UP) })
-	g.HandleRune('a', func(_ termbox.Event) { g.P.Move(DIR_LEFT) })
-	g.HandleRune('s', func(_ termbox.Event) { g.P.Move(DIR_DOWN) })
-	g.HandleRune('d', func(_ termbox.Event) { g.P.Move(DIR_RIGHT) })
+	for k, v := range CARDINALS {
+		func (c rune, d Direction) {
+			g.HandleRune(c, func(_ termbox.Event) {
+				g.P.Move(d)
+			})
+		}(k, v)
+	}
+
 	g.HandleRune('W', func(_ termbox.Event) {
 		for i := 0; i < scale; i++ {
 			g.P.Move(DIR_UP)
