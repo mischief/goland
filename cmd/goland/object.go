@@ -14,6 +14,19 @@ const (
 	DIR_RIGHT
 )
 
+var (
+	CARDINALS = map[rune] Direction {
+		'w': DIR_UP,
+		'k': DIR_UP,
+		'a': DIR_LEFT,
+		'h': DIR_LEFT,
+		's': DIR_DOWN,
+		'j': DIR_DOWN,
+		'd': DIR_RIGHT,
+		'l': DIR_RIGHT,
+	}
+)
+
 type Rectangle struct {
 	Left, Top, Bottom, Right float64
 }
