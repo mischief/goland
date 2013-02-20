@@ -1,18 +1,16 @@
 package main
 
 import (
-	"github.com/nsf/termbox-go"
 	"time"
+//  "log"
+	"github.com/nsf/termbox-go"
 )
 
 const (
 	PLAYER_SPEED         = 2
+  PLAYER_RUN_SPEED     = 4
 	DEFAULT_SPEED        = 8
 	DEFAULT_ATTACK_SPEED = 8
-)
-
-var (
-  defaultCell = termbox.Cell{Ch: ' ', Fg: termbox.ColorDefault, Bg: termbox.ColorDefault}
 )
 
 type Unit struct {
@@ -27,9 +25,10 @@ type Unit struct {
 }
 
 func NewUnit(g *Game) Unit {
-	u := Unit{Ch: defaultCell,
+	u := Unit{Ch:  MAP_EMPTY,
 		Speed:       DEFAULT_SPEED,
 		AttackSpeed: DEFAULT_ATTACK_SPEED}
+
 	u.g = g
 
 	return u
@@ -48,17 +47,11 @@ func (u *Unit) Move(d Direction) {
 		newpos.X += 1
 	}
 
-  // check for a valid position
-  rect := Rectangle{0, 0, u.g.Map.Size.Y-1, u.g.Map.Size.X-1}
-  if ! rect.Inside(newpos) {
-    return
+  t, ok := u.g.Map.GetTerrain(newpos)
+
+  if ok && ! t.IsWall() {
+    u.Pos = newpos
   }
-
-	if u.g.Map.Tiles[int(newpos.X)][int(newpos.Y)].IsBlocked() {
-		return
-	}
-
-	u.Pos = newpos
 }
 
 func (u *Unit) Update(delta time.Duration) {
@@ -66,5 +59,6 @@ func (u *Unit) Update(delta time.Duration) {
 
 func (u *Unit) Draw(g *Game) {
 	x, y := u.Pos.Round()
-	termbox.SetCell(x, y, u.Ch.Ch, u.Ch.Fg, u.Ch.Bg)
+  g.PrintCell(x, y, u.Ch)
 }
+

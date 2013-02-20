@@ -2,8 +2,8 @@ package main
 
 import (
 	"flag"
+  "log"
 	//"flag"
-	//"fmt"
 	//"time"
 	//"os"
 
@@ -15,5 +15,13 @@ func main() {
 
 	g := NewGame()
 
+  defer func() {
+    if r := recover(); r != nil {
+      log.Printf("Recovered from %v", r)
+      g.End()
+    }
+  }()
+
 	g.Run()
 }
+

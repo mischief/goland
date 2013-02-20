@@ -45,12 +45,7 @@ func NewGame() *Game {
 	g.CloseChan = make(chan bool, 1)
 
 	g.Map = NewMapChunk()
-	g.Map.Tiles[30][22].Blocked = true
-	g.Map.Tiles[30][22].SightBlocked = true
-	g.Map.Tiles[30][22].Ch = MAP_WALL
-	g.Map.Tiles[50][22].Blocked = true
-	g.Map.Tiles[50][22].SightBlocked = true
-	g.Map.Tiles[50][22].Ch = MAP_WALL
+  g.Map.Locations[30][22] = GlyphToTerrain('#')
 
 	g.P = NewPlayer(&g)
 	g.P.Pos = Vector{10, 10}
@@ -114,7 +109,7 @@ func (g *Game) Start() {
 
 	g.HandleKey(termbox.KeyEsc, func(ev termbox.Event) { g.CloseChan <- false })
 
-	scale := 2
+	scale := PLAYER_RUN_SPEED
 
 	// convert to func SetupDirections()
 	for k, v := range CARDINALS {
@@ -153,12 +148,15 @@ func (g *Game) Update(delta time.Duration) {
 
 func (g *Game) Draw() {
 	//	g.Terminal.Draw()
-	for x, col := range g.Map.Tiles {
-		for y, tile := range col {
-			if tile.CanSee() {
-				termbox.SetCell(x, y, tile.Ch.Ch, tile.Ch.Fg, tile.Ch.Bg)
+	for x, col := range g.Map.Locations {
+		for y, terr := range col {
+			if ! terr.IsWall() {
+        g.PrintCell(x, y, terr.Glyph)
 			} else {
-				termbox.SetCell(x, y, tile.Ch.Ch, termbox.ColorBlack, termbox.ColorWhite)
+        newglyph := terr.Glyph
+        newglyph.Fg = termbox.ColorBlack
+        newglyph.Bg = termbox.ColorBlack
+        g.PrintCell(x, y, newglyph)
 			}
 		}
 	}
@@ -194,3 +192,4 @@ func (g *Game) calcFPS(delta time.Duration) float64 {
 
 	return fps
 }
+

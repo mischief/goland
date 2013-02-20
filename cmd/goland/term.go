@@ -92,6 +92,10 @@ func (t *Terminal) HandleKey(k termbox.Key, h KeyHandler) {
 	t.keyhandlers[k] = h
 }
 
+func (t *Terminal) PrintCell(x, y int, ch termbox.Cell) {
+  termbox.SetCell(x, y, ch.Ch, ch.Fg, ch.Bg)
+}
+
 func (t *Terminal) Print(x, y int, fg, bg termbox.Attribute, msg string) {
 	for _, c := range msg {
 		termbox.SetCell(x, y, c, fg, bg)
