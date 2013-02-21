@@ -3,12 +3,14 @@ package main
 import (
 	"flag"
 	"fmt"
-	"unicode"
 	"github.com/nsf/termbox-go"
 	"github.com/nsf/tulib"
+	"image"
 	"log"
 	"os"
+	"runtime"
 	"time"
+	"unicode"
 )
 
 const (
@@ -19,6 +21,7 @@ const (
 var (
 	fpsSamples    [64]float64
 	currentSample = 0
+	stats         runtime.MemStats
 	logfile       = flag.String("log", "goland.log", "log file")
 	debug         = flag.Bool("debug", false, "print debugging info")
 )
@@ -45,16 +48,22 @@ func NewGame() *Game {
 	g.CloseChan = make(chan bool, 1)
 
 	g.Map = NewMapChunk()
-  g.Map.Locations[30][22] = GlyphToTerrain('#')
+	g.Map.Locations[1][4] = GlyphToTerrain('#')
+	g.Map.Locations[2][4] = GlyphToTerrain('#')
+	g.Map.Locations[3][4] = GlyphToTerrain('#')
+	g.Map.Locations[4][4] = GlyphToTerrain('#')
+	g.Map.Locations[4][3] = GlyphToTerrain('#')
+	g.Map.Locations[4][2] = GlyphToTerrain('#')
+	g.Map.Locations[4][1] = GlyphToTerrain('#')
 
 	g.P = NewPlayer(&g)
-	g.P.Pos = Vector{10, 10}
+	g.P.Pos = image.Pt(2, 2)
 
 	g.Objects = append(g.Objects, g.P)
 
 	u := NewUnit(&g)
 	u.Ch.Ch = '@'
-	u.Pos = Vector{15, 15}
+	u.Pos = image.Pt(7, 7)
 
 	g.Objects = append(g.Objects, &u)
 
@@ -113,7 +122,7 @@ func (g *Game) Start() {
 
 	// convert to func SetupDirections()
 	for k, v := range CARDINALS {
-		func (c rune, d Direction) {
+		func(c rune, d Direction) {
 			g.HandleRune(c, func(_ termbox.Event) {
 				g.P.Move(d)
 			})
@@ -137,6 +146,7 @@ func (g *Game) End() {
 func (g *Game) Update(delta time.Duration) {
 	// update fps
 	g.fps = g.calcFPS(delta)
+	runtime.ReadMemStats(&stats)
 
 	g.RunInputHandlers()
 
@@ -147,35 +157,51 @@ func (g *Game) Update(delta time.Duration) {
 }
 
 func (g *Game) Draw() {
-	//	g.Terminal.Draw()
-	for x, col := range g.Map.Locations {
-		for y, terr := range col {
-			if ! terr.IsWall() {
-        g.PrintCell(x, y, terr.Glyph)
-			} else {
-        newglyph := terr.Glyph
-        newglyph.Fg = termbox.ColorBlack
-        newglyph.Bg = termbox.ColorBlack
-        g.PrintCell(x, y, newglyph)
+
+	// construct a current view of the 2d world and blit it
+	viewwidth := g.Terminal.Rect.Width - VIEW_START_X - VIEW_PAD_X
+	viewheight := g.Terminal.Rect.Height - VIEW_START_Y - VIEW_PAD_Y
+	viewrect := tulib.Rect{VIEW_START_X, VIEW_START_Y, viewwidth, viewheight}
+	viewbuf := tulib.NewBuffer(viewwidth, viewheight)
+	viewbuf.Fill(viewrect, termbox.Cell{Ch: ' ', Fg: termbox.ColorDefault, Bg: termbox.ColorDefault})
+
+	cam := NewCamera(viewbuf)
+	cam.SetCenter(g.P.GetPos())
+
+	// draw terrain
+	for y, row := range g.Map.Locations {
+		for x, terr := range row {
+			pos := image.Pt(x, y)
+			if cam.ContainsWorldPoint(pos) {
+				cam.Draw(terr, pos)
 			}
 		}
 	}
 
-	labelparams := &tulib.LabelParams{termbox.ColorRed, termbox.ColorBlack, tulib.AlignCenter, '»', false}
-	labelrect := tulib.Rect{1, 0, 12, 1}
-
-	g.Terminal.DrawLabel(labelrect, labelparams, []byte(fmt.Sprintf(" FPS: %5.2f ", g.fps)))
-
-	fpsrect := tulib.Rect{14, 0, 9, 1}
-
-	g.Terminal.DrawLabel(fpsrect, labelparams, []byte(fmt.Sprintf(" %dx%d ", g.Terminal.Rect.Width, g.Terminal.Rect.Height)))
-
+	// draw other crap
 	for _, o := range g.Objects {
-		o.Draw(g)
+		if cam.ContainsWorldPoint(o.GetPos()) {
+			cam.Draw(o, o.GetPos())
+		}
 	}
 
-	//fps := g.CalcFPS(delta)
-	//g.Printf(0, 0, termbox.ColorRed, termbox.ColorBlack, "FPS: %f", g.fps)
+	// draw labels
+	statsparams := &tulib.LabelParams{termbox.ColorRed, termbox.ColorBlack, tulib.AlignLeft, '.', false}
+	statsrect := tulib.Rect{1, 0, 60, 1}
+
+	statsstr := fmt.Sprintf("%dx%d TERM %5.2f FPS %5.2f MB %d GC %d GR",
+		g.Terminal.Rect.Width, g.Terminal.Rect.Height, g.fps, float64(stats.HeapAlloc)/1000000.0, stats.NumGC, runtime.NumGoroutine())
+
+	playerparams := &tulib.LabelParams{termbox.ColorRed, termbox.ColorBlack, tulib.AlignLeft, '.', false}
+	playerrect := tulib.Rect{1, g.Terminal.Rect.Height - 1, g.Terminal.Rect.Width, 1}
+
+	playerstr := fmt.Sprintf("%s Cam.Pos: %s Cam.Rect: %v", g.P, cam.Pos.String(), cam.Rect)
+
+	g.Terminal.DrawLabel(statsrect, statsparams, []byte(statsstr))
+	g.Terminal.DrawLabel(playerrect, playerparams, []byte(playerstr))
+
+	// blit
+	g.Terminal.Blit(viewrect, 0, 0, &viewbuf)
 
 }
 
@@ -192,4 +218,3 @@ func (g *Game) calcFPS(delta time.Duration) float64 {
 
 	return fps
 }
-

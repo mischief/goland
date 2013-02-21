@@ -1,6 +1,8 @@
 package main
 
 import (
+	"github.com/nsf/tulib"
+	"image"
 	"time"
 )
 
@@ -14,7 +16,7 @@ const (
 )
 
 var (
-	CARDINALS = map[rune] Direction {
+	CARDINALS = map[rune]Direction{
 		'w': DIR_UP,
 		'k': DIR_UP,
 		'a': DIR_LEFT,
@@ -35,12 +37,16 @@ type Updateable interface {
 }
 
 type Renderable interface {
-	Draw(g *Game)
+	Draw(*tulib.Buffer, image.Point)
+}
+
+type Locateable interface {
+	GetPos() image.Point
 }
 
 type Object interface {
 	Moveable
 	Updateable
 	Renderable
+	Locateable
 }
-

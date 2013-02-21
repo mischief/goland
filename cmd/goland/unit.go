@@ -1,22 +1,27 @@
 package main
 
 import (
+	"fmt"
+	"image"
 	"time"
-//  "log"
+	//  "log"
 	"github.com/nsf/termbox-go"
+	"github.com/nsf/tulib"
 )
 
 const (
 	PLAYER_SPEED         = 2
-  PLAYER_RUN_SPEED     = 4
+	PLAYER_RUN_SPEED     = 4
 	DEFAULT_SPEED        = 8
 	DEFAULT_ATTACK_SPEED = 8
+	DEFAULT_HP           = 10
+	DEFAULT_AC           = 5
 )
 
 type Unit struct {
-	Pos, Vel Vector
+	Pos, Vel image.Point
 	Ch       termbox.Cell // character for this object
-	Hp       int
+	Hp, AC   int
 
 	Speed, AttackSpeed int
 	wait               int
@@ -25,13 +30,19 @@ type Unit struct {
 }
 
 func NewUnit(g *Game) Unit {
-	u := Unit{Ch:  MAP_EMPTY,
+	u := Unit{Ch: MAP_EMPTY,
+		Hp:          DEFAULT_HP,
+		AC:          DEFAULT_AC,
 		Speed:       DEFAULT_SPEED,
 		AttackSpeed: DEFAULT_ATTACK_SPEED}
 
 	u.g = g
 
 	return u
+}
+
+func (u *Unit) String() string {
+	return fmt.Sprintf("Pos: %s Hp: %d AC: %d Speed: %d", u.Pos, u.Hp, u.AC, u.Speed)
 }
 
 func (u *Unit) Move(d Direction) {
@@ -47,18 +58,20 @@ func (u *Unit) Move(d Direction) {
 		newpos.X += 1
 	}
 
-  t, ok := u.g.Map.GetTerrain(newpos)
+	t, ok := u.g.Map.GetTerrain(newpos)
 
-  if ok && ! t.IsWall() {
-    u.Pos = newpos
-  }
+	if ok && !t.IsWall() {
+		u.Pos = newpos
+	}
 }
 
 func (u *Unit) Update(delta time.Duration) {
 }
 
-func (u *Unit) Draw(g *Game) {
-	x, y := u.Pos.Round()
-  g.PrintCell(x, y, u.Ch)
+func (u *Unit) Draw(b *tulib.Buffer, pt image.Point) {
+	b.Set(pt.X, pt.Y, u.Ch)
 }
 
+func (u *Unit) GetPos() image.Point {
+	return u.Pos
+}
