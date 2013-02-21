@@ -2,26 +2,24 @@ package main
 
 import (
 	"flag"
-  "log"
-	//"flag"
-	//"time"
-	//"os"
-
-	//"github.com/nsf/termbox-go"
+	"log"
 )
 
 func main() {
 	flag.Parse()
 
+	// log panics
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("Recovered from %v", r)
+		}
+	}()
+
 	g := NewGame()
 
-  defer func() {
-    if r := recover(); r != nil {
-      log.Printf("Recovered from %v", r)
-      g.End()
-    }
-  }()
+	defer g.End()
 
+	// do the good stuff
 	g.Run()
 }
 
