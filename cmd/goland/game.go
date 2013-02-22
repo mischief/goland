@@ -29,9 +29,9 @@ type Game struct {
 	CloseChan chan bool
 
 	// unexported
-	fps float64
+	fps     float64
 	Objects []Object
-	Map *MapChunk
+	Map     *MapChunk
 }
 
 func NewGame() *Game {
@@ -39,14 +39,9 @@ func NewGame() *Game {
 
 	g.CloseChan = make(chan bool, 1)
 
-	g.Map = NewMapChunk()
-	g.Map.Locations[1][4] = GlyphToTerrain('#')
-	g.Map.Locations[2][4] = GlyphToTerrain('#')
-	g.Map.Locations[3][4] = GlyphToTerrain('#')
-	g.Map.Locations[4][4] = GlyphToTerrain('#')
-	g.Map.Locations[4][3] = GlyphToTerrain('#')
-	g.Map.Locations[4][2] = GlyphToTerrain('#')
-	g.Map.Locations[4][1] = GlyphToTerrain('#')
+	if g.Map = MapChunkFromFile("map"); g.Map == nil {
+		log.Fatal("can't open map file")
+	}
 
 	g.P = NewPlayer(&g)
 	g.P.Pos = image.Pt(2, 2)

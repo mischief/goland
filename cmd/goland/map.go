@@ -1,9 +1,13 @@
 package main
 
 import (
+	"bufio"
+	"fmt"
 	"github.com/nsf/termbox-go"
 	"github.com/nsf/tulib"
 	"image"
+	"log"
+	"os"
 )
 
 type TerrainType uint32
@@ -29,8 +33,12 @@ var (
 	}
 )
 
-func GlyphToTerrain(g rune) *Terrain {
-	return glyphTable[g]
+func GlyphToTerrain(g rune) (t *Terrain, ok bool) {
+	t, ok = glyphTable[g]
+	if !ok {
+		t = glyphTable[' ']
+	}
+	return
 }
 
 type Terrain struct {
@@ -38,6 +46,10 @@ type Terrain struct {
 	Type  TerrainType
 
 	Edge, Seen, Lit bool
+}
+
+func (t *Terrain) String() string {
+	return fmt.Sprintf("(%c %d %t %t %t)", t.Glyph.Ch, t.Type, t.Edge, t.Seen, t.Lit)
 }
 
 func (t *Terrain) Draw(b *tulib.Buffer, pt image.Point) {
@@ -76,7 +88,8 @@ func NewMapChunk() *MapChunk {
 
 	for x := 0; x < MAP_WIDTH; x++ {
 		for y := 0; y < MAP_HEIGHT; y++ {
-			ch.Locations[x][y] = GlyphToTerrain('.')
+			g, _ := GlyphToTerrain('.')
+			ch.Locations[x][y] = g
 		}
 	}
 
@@ -94,4 +107,40 @@ func (mc *MapChunk) GetTerrain(pt image.Point) (t *Terrain, ok bool) {
 		return
 	}
 	return mc.Locations[pt.X][pt.Y], true
+}
+
+func MapChunkFromFile(mapfile string) *MapChunk {
+	mfh, err := os.Open(mapfile)
+	if err != nil {
+		log.Printf("can't open map file %s: %s", mapfile, err)
+		return nil
+	}
+
+	defer mfh.Close()
+
+	r := bufio.NewReader(mfh)
+
+	mc := NewMapChunk()
+
+	for y := 0; y < MAP_HEIGHT; y++ {
+		str, err := r.ReadString('\n')
+		if err != nil {
+			log.Printf("map read error: %s", err)
+			return nil
+		}
+
+		for x := 0; x < MAP_WIDTH; x++ {
+			g, ok := GlyphToTerrain(rune(str[x]))
+			if !ok {
+				log.Printf("invalid map tile '%c' at %s:%d:%d", str[x], mapfile, y, x)
+				return nil
+			}
+
+			mc.Locations[x][y] = g
+		}
+	}
+
+	log.Printf("loaded map file %s ", mapfile)
+
+	return mc
 }
