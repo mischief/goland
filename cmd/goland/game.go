@@ -152,8 +152,8 @@ func (g *Game) Draw() {
 	cam.SetCenter(g.P.GetPos())
 
 	// draw terrain
-	for y, row := range g.Map.Locations {
-		for x, terr := range row {
+	for x, row := range g.Map.Locations {
+		for y, terr := range row {
 			pos := image.Pt(x, y)
 			if cam.ContainsWorldPoint(pos) {
 				cam.Draw(terr, pos)
