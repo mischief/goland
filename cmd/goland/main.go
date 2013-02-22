@@ -7,10 +7,24 @@ import (
 	"runtime/pprof"
 )
 
-var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
+var (
+	cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
+	logfile    = flag.String("log", "goland.log", "log file")
+	debug      = flag.Bool("debug", false, "print debugging info")
+)
 
 func main() {
 	flag.Parse()
+
+	f, err := os.OpenFile(*logfile, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	defer f.Close()
+
+	log.SetOutput(f)
+	log.Print("Logging started")
 
 	// log panics
 	defer func() {
@@ -26,14 +40,17 @@ func main() {
 			log.Fatal(err)
 		}
 
+		log.Println("Starting profiling in file %s", *cpuprofile)
 		pprof.StartCPUProfile(f)
 		defer pprof.StopCPUProfile()
 	}
 
+	log.Println("Creating game instance")
 	g := NewGame()
 
-	defer g.End()
-
 	// do the good stuff
+	log.Println("Beginning game loop")
 	g.Run()
+
+	log.Println("Done")
 }

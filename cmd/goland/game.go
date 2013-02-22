@@ -1,13 +1,11 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"github.com/nsf/termbox-go"
 	"github.com/nsf/tulib"
 	"image"
 	"log"
-	"os"
 	"runtime"
 	"time"
 	"unicode"
@@ -22,23 +20,17 @@ var (
 	fpsSamples    [64]float64
 	currentSample = 0
 	stats         runtime.MemStats
-	logfile       = flag.String("log", "goland.log", "log file")
-	debug         = flag.Bool("debug", false, "print debugging info")
 )
 
 type Game struct {
 	P *Player
 
 	Terminal
-	logfile *os.File
-
 	CloseChan chan bool
 
 	// unexported
 	fps float64
-
 	Objects []Object
-
 	Map *MapChunk
 }
 
@@ -104,15 +96,7 @@ func (g *Game) Run() {
 }
 
 func (g *Game) Start() {
-	f, err := os.OpenFile(*logfile, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	log.SetOutput(f)
-	log.Print("Logging started")
-
-	g.logfile = f
+	log.Print("Game starting")
 
 	g.Terminal.Start()
 
@@ -138,8 +122,7 @@ func (g *Game) Start() {
 }
 
 func (g *Game) End() {
-	log.Print("Logging ended")
-	g.logfile.Close()
+	log.Print("Game ending")
 	g.Terminal.End()
 }
 
