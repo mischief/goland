@@ -2,19 +2,59 @@ package main
 
 import (
 	"fmt"
+	goland "github.com/mischief/goland/game"
 	"github.com/nsf/termbox-go"
 	"github.com/nsf/tulib"
 	"image"
 	"log"
 	"runtime"
 	"time"
-	"unicode"
+	//"unicode"
 )
 
 const (
-	NumFPSSamples = 64
-	FPSLimit      = 60
+	FPS_SAMPLES = 64
+	FPS_LIMIT   = 60
 )
+
+var (
+	CARDINALS = map[rune]goland.Direction{
+		'w': goland.DIR_UP,
+		'k': goland.DIR_UP,
+		'a': goland.DIR_LEFT,
+		'h': goland.DIR_LEFT,
+		's': goland.DIR_DOWN,
+		'j': goland.DIR_DOWN,
+		'd': goland.DIR_RIGHT,
+		'l': goland.DIR_RIGHT,
+	}
+)
+
+type Stats struct {
+	Samples  [64]float64
+	Current  int
+	MemStats runtime.MemStats
+
+	fps float64
+}
+
+func (s Stats) String() string {
+	return fmt.Sprintf("%5.2f FPS %5.2f MB %d GC %d GR", s.fps, float64(s.MemStats.HeapAlloc)/1000000.0, s.MemStats.NumGC, runtime.NumGoroutine())
+}
+
+func (s *Stats) Update(delta time.Duration) {
+
+	runtime.ReadMemStats(&s.MemStats)
+
+	s.Samples[s.Current%FPS_SAMPLES] = 1.0 / delta.Seconds()
+	s.Current++
+
+	for i := 0; i < FPS_SAMPLES; i++ {
+		s.fps += s.Samples[i]
+	}
+
+	s.fps /= FPS_SAMPLES
+}
 
 var (
 	fpsSamples    [64]float64
@@ -23,15 +63,14 @@ var (
 )
 
 type Game struct {
-	P *Player
+	Player *goland.Unit
 
 	Terminal
 	CloseChan chan bool
 
-	// unexported
-	fps     float64
-	Objects []Object
-	Map     *MapChunk
+	stats   Stats
+	Objects []*goland.GameObject // all known objects
+	Map     *goland.MapChunk
 }
 
 func NewGame() *Game {
@@ -39,20 +78,15 @@ func NewGame() *Game {
 
 	g.CloseChan = make(chan bool, 1)
 
-	if g.Map = MapChunkFromFile("map"); g.Map == nil {
+	if g.Map = goland.MapChunkFromFile("map"); g.Map == nil {
 		log.Fatal("can't open map file")
 	}
 
-	g.P = NewPlayer(&g)
-	g.P.Pos = image.Pt(2, 2)
+	g.Player = goland.NewUnit()
+	g.Player.SetPos(image.Pt(256/2, 256/2))
+	g.Player.Glyph = goland.GLYPH_HUMAN
 
-	g.Objects = append(g.Objects, g.P)
-
-	u := NewUnit(&g)
-	u.Ch.Ch = '@'
-	u.Pos = image.Pt(7, 7)
-
-	g.Objects = append(g.Objects, &u)
+	g.Objects = append(g.Objects, &g.Player.GameObject)
 
 	return &g
 }
@@ -61,8 +95,8 @@ func (g *Game) Run() {
 
 	g.Start()
 
-	timer := NewDeltaTimer()
-	ticker := time.NewTicker(time.Second / FPSLimit)
+	timer := goland.NewDeltaTimer()
+	ticker := time.NewTicker(time.Second / FPS_LIMIT)
 
 	run := true
 
@@ -97,21 +131,26 @@ func (g *Game) Start() {
 
 	g.HandleKey(termbox.KeyEsc, func(ev termbox.Event) { g.CloseChan <- false })
 
-	scale := PLAYER_RUN_SPEED
-
 	// convert to func SetupDirections()
 	for k, v := range CARDINALS {
-		func(c rune, d Direction) {
+		func(c rune, d goland.Direction) {
 			g.HandleRune(c, func(_ termbox.Event) {
-				g.P.Move(d)
-			})
-
-			upperc := unicode.ToUpper(c)
-			g.HandleRune(upperc, func(_ termbox.Event) {
-				for i := 0; i < scale; i++ {
-					g.P.Move(d)
+				// lol collision
+				newpos := g.Player.GetPos().Add(goland.DirTable[d])
+				if g.Map.CheckCollision(&g.Player.GameObject, newpos) {
+					g.Player.SetPos(newpos)
 				}
 			})
+
+			/*
+				      scale := PLAYER_RUN_SPEED
+							upperc := unicode.ToUpper(c)
+							g.HandleRune(upperc, func(_ termbox.Event) {
+								for i := 0; i < scale; i++ {
+									g.Player.Move(d)
+								}
+							})
+			*/
 		}(k, v)
 	}
 }
@@ -122,9 +161,8 @@ func (g *Game) End() {
 }
 
 func (g *Game) Update(delta time.Duration) {
-	// update fps
-	g.fps = g.calcFPS(delta)
-	runtime.ReadMemStats(&stats)
+	// collect stats
+	g.stats.Update(delta)
 
 	g.RunInputHandlers()
 
@@ -144,7 +182,7 @@ func (g *Game) Draw() {
 	viewbuf.Fill(viewrect, termbox.Cell{Ch: ' ', Fg: termbox.ColorDefault, Bg: termbox.ColorDefault})
 
 	cam := NewCamera(viewbuf)
-	cam.SetCenter(g.P.GetPos())
+	cam.SetCenter(g.Player.GetPos())
 
 	// draw terrain
 	for x, row := range g.Map.Locations {
@@ -167,13 +205,12 @@ func (g *Game) Draw() {
 	statsparams := &tulib.LabelParams{termbox.ColorRed, termbox.ColorBlack, tulib.AlignLeft, '.', false}
 	statsrect := tulib.Rect{1, 0, 60, 1}
 
-	statsstr := fmt.Sprintf("%dx%d TERM %5.2f FPS %5.2f MB %d GC %d GR",
-		g.Terminal.Rect.Width, g.Terminal.Rect.Height, g.fps, float64(stats.HeapAlloc)/1000000.0, stats.NumGC, runtime.NumGoroutine())
+	statsstr := fmt.Sprintf("%s TERM %s", g.Terminal.Size(), g.stats)
 
 	playerparams := &tulib.LabelParams{termbox.ColorRed, termbox.ColorBlack, tulib.AlignLeft, '.', false}
 	playerrect := tulib.Rect{1, g.Terminal.Rect.Height - 1, g.Terminal.Rect.Width, 1}
 
-	playerstr := fmt.Sprintf("%s Cam.Pos: %s Cam.Rect: %v", g.P, cam.Pos.String(), cam.Rect)
+	playerstr := fmt.Sprintf("%s Cam.Pos: %s Cam.Rect: %v", g.Player, cam.Pos, cam.Rect)
 
 	g.Terminal.DrawLabel(statsrect, statsparams, []byte(statsstr))
 	g.Terminal.DrawLabel(playerrect, playerparams, []byte(playerstr))
@@ -181,18 +218,4 @@ func (g *Game) Draw() {
 	// blit
 	g.Terminal.Blit(viewrect, 0, 0, &viewbuf)
 
-}
-
-func (g *Game) calcFPS(delta time.Duration) float64 {
-	fpsSamples[currentSample%NumFPSSamples] = 1.0 / delta.Seconds()
-	currentSample++
-	fps := 0.0
-
-	for i := 0; i < NumFPSSamples; i++ {
-		fps += fpsSamples[i]
-	}
-
-	fps /= NumFPSSamples
-
-	return fps
 }

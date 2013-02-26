@@ -1,6 +1,7 @@
 package main
 
 import (
+	goland "github.com/mischief/goland/game"
 	"github.com/nsf/tulib"
 	"image"
 )
@@ -41,7 +42,7 @@ func (c *Camera) transform(pt image.Point) image.Point {
 }
 
 // draw r at pt, applying any camera transformations
-func (c *Camera) Draw(r Renderable, pt image.Point) {
+func (c *Camera) Draw(r goland.Renderable, pt image.Point) {
 	r.Draw(&c.Render, c.transform(pt))
 }
 

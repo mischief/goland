@@ -4,12 +4,8 @@ import (
 	"fmt"
 	"github.com/nsf/termbox-go"
 	"github.com/nsf/tulib"
+	"image"
 	"log"
-	"os"
-)
-
-const (
-	superficialSizeLimit = 24
 )
 
 type KeyHandler func(ev termbox.Event)
@@ -22,6 +18,10 @@ type Terminal struct {
 	keyhandlers  map[termbox.Key]KeyHandler
 }
 
+func (t *Terminal) Size() image.Point {
+	return image.Point{t.Rect.Width, t.Rect.Height}
+}
+
 func (t *Terminal) Start() error {
 	err := termbox.Init()
 	if err != nil {
@@ -29,12 +29,6 @@ func (t *Terminal) Start() error {
 	}
 
 	t.Buffer = tulib.TermboxBuffer()
-
-	if t.Rect.Height < superficialSizeLimit {
-		fmt.Println("terminal too small")
-		t.End()
-		os.Exit(1)
-	}
 
 	t.EventChan = make(chan termbox.Event)
 
@@ -93,7 +87,7 @@ func (t *Terminal) HandleKey(k termbox.Key, h KeyHandler) {
 }
 
 func (t *Terminal) PrintCell(x, y int, ch termbox.Cell) {
-  termbox.SetCell(x, y, ch.Ch, ch.Fg, ch.Bg)
+	termbox.SetCell(x, y, ch.Ch, ch.Fg, ch.Bg)
 }
 
 func (t *Terminal) Print(x, y int, fg, bg termbox.Attribute, msg string) {
@@ -107,4 +101,3 @@ func (t *Terminal) Printf(x, y int, fg, bg termbox.Attribute, format string, arg
 	s := fmt.Sprintf(format, args...)
 	t.Print(x, y, fg, bg, s)
 }
-

@@ -1,35 +1,18 @@
-package main
+// Core game object interfaces
+package game
 
 import (
+	"bytes"
+	"fmt"
+	"github.com/nsf/termbox-go"
 	"github.com/nsf/tulib"
 	"image"
 	"time"
 )
 
-type Direction int
-
-const (
-	DIR_UP Direction = iota
-	DIR_DOWN
-	DIR_LEFT
-	DIR_RIGHT
-)
-
-var (
-	CARDINALS = map[rune]Direction{
-		'w': DIR_UP,
-		'k': DIR_UP,
-		'a': DIR_LEFT,
-		'h': DIR_LEFT,
-		's': DIR_DOWN,
-		'j': DIR_DOWN,
-		'd': DIR_RIGHT,
-		'l': DIR_RIGHT,
-	}
-)
-
-type Moveable interface {
-	Move(d Direction)
+type Positionable interface {
+	SetPos(image.Point) bool // Set a new position. Returns false if that position is unavailable.
+	GetPos() image.Point
 }
 
 type Updateable interface {
@@ -40,13 +23,52 @@ type Renderable interface {
 	Draw(*tulib.Buffer, image.Point)
 }
 
-type Locateable interface {
-	GetPos() image.Point
-}
-
-type Object interface {
-	Moveable
+/*type Object interface {
+	Positionable
 	Updateable
 	Renderable
-	Locateable
+}*/
+
+type GameObject struct {
+	Pos   image.Point
+	Glyph termbox.Cell // character for this object
+
+	Tags map[string]bool
+}
+
+func NewGameObject() *GameObject {
+	gob := &GameObject{
+		Pos:   image.ZP,
+		Glyph: termbox.Cell{'¡', termbox.ColorRed, termbox.ColorDefault},
+	}
+
+	gob.Tags = make(map[string]bool)
+
+	return gob
+}
+
+func (gob GameObject) String() string {
+	var buf bytes.Buffer
+
+	for key, value := range gob.Tags {
+		buf.WriteString(fmt.Sprintf(" %s:%t", key, value))
+	}
+
+	return fmt.Sprintf("%s (%c) tags:%s", gob.Pos, gob.Glyph.Ch, buf.String())
+}
+
+func (gob *GameObject) SetPos(pos image.Point) bool {
+	gob.Pos = pos
+	return true
+}
+
+func (gob *GameObject) GetPos() image.Point {
+	return gob.Pos
+}
+
+func (gob *GameObject) Update(delta time.Duration) {
+}
+
+func (gob *GameObject) Draw(buf *tulib.Buffer, pos image.Point) {
+	buf.Set(pos.X, pos.Y, gob.Glyph)
 }

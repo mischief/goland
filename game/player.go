@@ -1,20 +1,14 @@
-package main
-
-import (
-	"github.com/nsf/termbox-go"
-	"time"
-)
+// Player is a Unit that is controllable by a client
+// (this should really have no distinction)
+package game
 
 type Player struct {
-	Unit // embed
+	*Unit
 }
 
-func NewPlayer(g *Game) *Player {
-	o := NewUnit(g)
-	o.Ch = termbox.Cell{'@', termbox.ColorGreen, termbox.ColorBlack}
+func NewPlayer() *Player {
+	o := NewUnit()
+	o.Glyph = GLYPH_HUMAN
 	p := &Player{Unit: o}
 	return p
-}
-
-func (p *Player) Update(delta time.Duration) {
 }
