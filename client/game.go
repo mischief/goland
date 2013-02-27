@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	goland "github.com/mischief/goland/game"
+	"github.com/mischief/goland/game/gutil"
 	"github.com/nsf/termbox-go"
 	"github.com/nsf/tulib"
 	"image"
@@ -73,13 +74,20 @@ type Game struct {
 	Map     *goland.MapChunk
 }
 
-func NewGame() *Game {
+func NewGame(params *gutil.LuaParMap) *Game {
 	g := Game{}
 
 	g.CloseChan = make(chan bool, 1)
 
-	if g.Map = goland.MapChunkFromFile("map"); g.Map == nil {
-		log.Fatal("can't open map file")
+	mapfile, ok := params.Get("map")
+	if !ok {
+		log.Fatal("No map file specified")
+		return nil
+	}
+
+	log.Printf("Loading map chunk file: %s", mapfile)
+	if g.Map = goland.MapChunkFromFile(mapfile); g.Map == nil {
+		log.Fatal("Can't open map chunk file")
 	}
 
 	g.Player = goland.NewUnit()
