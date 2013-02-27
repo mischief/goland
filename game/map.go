@@ -152,7 +152,7 @@ func (mc *MapChunk) CheckCollision(gob *GameObject, pos image.Point) bool {
 func MapChunkFromFile(mapfile string) *MapChunk {
 	mfh, err := os.Open(mapfile)
 	if err != nil {
-		log.Fatalf("Error loading map chunk file '%s': %s", mapfile, err)
+		log.Printf("Error loading map chunk file '%s': %s", mapfile, err)
 		return nil
 	}
 
@@ -179,8 +179,6 @@ func MapChunkFromFile(mapfile string) *MapChunk {
 			mc.Locations[x][y] = g
 		}
 	}
-
-	log.Printf("loaded map file %s ", mapfile)
 
 	return mc
 }
