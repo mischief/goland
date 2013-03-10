@@ -4,14 +4,8 @@ import (
 	"fmt"
 	"github.com/nsf/termbox-go"
 	"github.com/nsf/tulib"
+	"image"
 	"log"
-	"os"
-	"strings"
-)
-
-const (
-	superficialSizeLimit = 24
-	border               = "#"
 )
 
 type KeyHandler func(ev termbox.Event)
@@ -24,6 +18,10 @@ type Terminal struct {
 	keyhandlers  map[termbox.Key]KeyHandler
 }
 
+func (t *Terminal) Size() image.Point {
+	return image.Point{t.Rect.Width, t.Rect.Height}
+}
+
 func (t *Terminal) Start() error {
 	err := termbox.Init()
 	if err != nil {
@@ -31,12 +29,6 @@ func (t *Terminal) Start() error {
 	}
 
 	t.Buffer = tulib.TermboxBuffer()
-
-	if t.Rect.Height < superficialSizeLimit {
-		fmt.Println("terminal too small")
-		t.End()
-		os.Exit(1)
-	}
 
 	t.EventChan = make(chan termbox.Event)
 
@@ -59,7 +51,6 @@ func (t *Terminal) End() {
 
 func (t *Terminal) Draw() {
 	termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
-	t.drawborder()
 }
 
 func (t *Terminal) Flush() {
@@ -95,6 +86,10 @@ func (t *Terminal) HandleKey(k termbox.Key, h KeyHandler) {
 	t.keyhandlers[k] = h
 }
 
+func (t *Terminal) PrintCell(x, y int, ch termbox.Cell) {
+	termbox.SetCell(x, y, ch.Ch, ch.Fg, ch.Bg)
+}
+
 func (t *Terminal) Print(x, y int, fg, bg termbox.Attribute, msg string) {
 	for _, c := range msg {
 		termbox.SetCell(x, y, c, fg, bg)
@@ -105,18 +100,4 @@ func (t *Terminal) Print(x, y int, fg, bg termbox.Attribute, msg string) {
 func (t *Terminal) Printf(x, y int, fg, bg termbox.Attribute, format string, args ...interface{}) {
 	s := fmt.Sprintf(format, args...)
 	t.Print(x, y, fg, bg, s)
-}
-
-func (t *Terminal) drawborder() {
-	var y int
-
-	t.Print(0, 0, termbox.ColorWhite, termbox.ColorBlack, strings.Repeat(border, t.Width))
-
-	for y = 0; y < t.Height-1; y++ {
-		t.Print(0, y, termbox.ColorWhite, termbox.ColorBlack, border)
-		t.Print(t.Width-1, y, termbox.ColorWhite, termbox.ColorBlack, border)
-	}
-
-	t.Print(0, y, termbox.ColorWhite, termbox.ColorBlack, strings.Repeat(border, t.Width))
-
 }

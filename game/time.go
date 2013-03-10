@@ -1,4 +1,5 @@
-package main
+// Time wrapper for easy delta timers
+package game
 
 import (
 	"time"
