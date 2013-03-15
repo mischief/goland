@@ -5,7 +5,7 @@ import (
 	"github.com/nsf/termbox-go"
 	"github.com/nsf/tulib"
 	"image"
-	"log"
+	//"log"
 )
 
 type KeyHandler func(ev termbox.Event)
@@ -60,7 +60,7 @@ func (t *Terminal) Flush() {
 func (t *Terminal) RunInputHandlers() error {
 	select {
 	case ev := <-t.EventChan:
-		log.Printf("Keypress: %s", tulib.KeyToString(ev.Key, ev.Ch, ev.Mod))
+		//log.Printf("Keypress: %s", tulib.KeyToString(ev.Key, ev.Ch, ev.Mod))
 
 		if ev.Ch != 0 { // this is a character
 			if handler, ok := t.runehandlers[ev.Ch]; ok {

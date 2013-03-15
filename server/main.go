@@ -1,70 +1,89 @@
 package main
 
 import (
-	"encoding/gob"
 	"flag"
-	"github.com/mischief/goland/game/gnet"
-	chanio "github.com/nu7hatch/gochanio"
-	"github.com/trustmaster/goflow"
-	"image"
+	"github.com/aarzilli/golua/lua"
+	"github.com/mischief/goland/game/gutil"
 	"log"
-	"net"
+	"math/rand"
+	"os"
+	"runtime/pprof"
+	"time"
 )
 
 var (
-	proto      = "tcp"
-	listenhost = ":61507"
+	configfile = flag.String("config", "config.lua", "configuration file")
+
+	Lua *lua.State
 )
 
 func init() {
-	gob.Register(&image.Point{})
+	rand.Seed(time.Now().UTC().UnixNano())
+
+	Lua = lua.NewState()
+
+	if Lua == nil {
+		log.Fatal("Can't make lua state")
+	}
+
+	Lua.OpenLibs()
 }
 
 func main() {
 	flag.Parse()
 
-	inPacket := make(chan *gnet.Packet, 5)
-
-	gs := NewGameServer()
-
-	gs.SetInPort("In", inPacket)
-
-	log.Print("Starting network")
-	flow.RunNet(gs)
-
-	// funnel messages to inline
-	l, err := net.Listen(proto, listenhost)
-	if err != nil {
-		log.Fatal(err)
+	// load configuration
+	ParMap, err := gutil.LuaParMapFromFile(Lua, *configfile)
+	if err != nil || ParMap == nil {
+		log.Fatalf("Error loading configuration file %s: %s", *configfile, err)
 	}
 
-	for {
-		conn, err := l.Accept()
+	// setup logging
+	lf, ok := ParMap.Get("logfile")
+	if !ok {
+		log.Printf("No logfile specified, using stdout")
+	} else {
+		// open log file
+		f, err := os.OpenFile(lf, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
 		if err != nil {
-			log.Print(err)
-			continue
+			log.Fatal(err)
 		}
-
-		log.Printf("new client %s", conn.RemoteAddr())
-
-		read := chanio.NewReader(conn)
-
-		if read == nil {
-			panic("no reader")
-		}
-
-		go func(reader <-chan interface{}) {
-			log.Printf("Reading from %s", conn.RemoteAddr())
-			for x := range reader {
-				log.Printf("%#v", x)
-				p := x.(*gnet.Packet)
-				p.Con = &conn
-
-				inPacket <- p
-			}
-			log.Printf("Done with %s", conn.RemoteAddr())
-		}(read)
-
+		defer f.Close()
+		log.SetOutput(f)
 	}
 
+	log.Print("-- Logging started --")
+
+	// log panics
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("Recovered from %v", r)
+		}
+	}()
+
+	log.Printf("Config loaded from %s", *configfile)
+
+	// dump config
+	it := ParMap.Iter()
+	for k, v, b := it(); b != false; k, v, b = it() {
+		log.Printf(" %s -> %s", k, v)
+	}
+
+	// enable profiling
+	if cpuprofile, ok := ParMap.Get("cpuprofile"); ok {
+		log.Println("Starting profiling in file %s", cpuprofile)
+		f, err := os.Create(cpuprofile)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		pprof.StartCPUProfile(f)
+		defer pprof.StopCPUProfile()
+	}
+
+	gs := NewGameServer(ParMap)
+
+	gs.Run()
+
+	log.Println("-- Logging ended --")
 }

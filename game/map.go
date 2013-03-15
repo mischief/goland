@@ -3,6 +3,7 @@ package game
 
 import (
 	"bufio"
+	"encoding/gob"
 	"fmt"
 	"github.com/nsf/termbox-go"
 	"github.com/nsf/tulib"
@@ -13,6 +14,10 @@ import (
 
 type TerrainType uint32
 type Direction int
+
+func (d Direction) String() string {
+	return fmt.Sprintf("%s", DirTable[d])
+}
 
 const (
 	MAP_WIDTH  = 256
@@ -50,6 +55,13 @@ var (
 		'@': &Terrain{GLYPH_HUMAN, T_UNIT},
 	}
 )
+
+func init() {
+	gob.Register(DIR_UP)
+	gob.Register(&MapChunk{})
+	gob.Register(&Terrain{})
+	gob.Register(T_EMPTY)
+}
 
 func (tt *TerrainType) String() string {
 	switch *tt {
@@ -106,6 +118,10 @@ type MapChunk struct {
 	Locations   [][]*Terrain  // land features
 	GameObjects []*GameObject // active game objects
 	Players     []*Player     // active players
+}
+
+func (mc *MapChunk) String() string {
+	return fmt.Sprintf("(%s %s objs %d players %d)", mc.Size, mc.Rect, len(mc.GameObjects), len(mc.Players))
 }
 
 func NewMapChunk() *MapChunk {

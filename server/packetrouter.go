@@ -2,27 +2,46 @@
 package main
 
 import (
-	"github.com/mischief/goland/game/gnet"
 	"github.com/trustmaster/goflow"
-	"image"
 	"log"
 )
 
 type PacketRouter struct {
 	flow.Component
-	In  <-chan *gnet.Packet
-	Log chan<- *gnet.Packet
+	In  <-chan *ClientPacket
+	Log chan<- *ClientPacket
+
+	world *GameServer
 }
 
-func (pf *PacketRouter) OnIn(p *gnet.Packet) {
-	// log all packets
-	pf.Log <- p
+func NewPacketRouter(w *GameServer) *PacketRouter {
+	pr := new(PacketRouter)
 
-	switch p.Tag {
-	case "move":
-		v := p.Data.(*image.Point)
-		log.Printf("PacketRouter: %s %s", p.Tag, v)
-	default:
-		log.Printf("PacketRouter: unknown packet type %s", p.Tag)
-	}
+	pr.world = w
+
+	return pr
+}
+
+func (pr *PacketRouter) OnIn(p *ClientPacket) {
+
+	defer func() {
+		if err := recover(); err != nil {
+			log.Println("PacketRouter: OnIn: panic:", err)
+		}
+	}()
+
+	// log all packets
+	pr.Log <- p
+
+	pr.world.HandlePacket(p)
+
+	/*
+		switch p.Tag {
+		case "move":
+			v := p.Data.(game.Direction)
+			log.Printf("PacketRouter: OnIn: %s %s %s", p.Client.Con.RemoteAddr(), p.Tag, v)
+		default:
+			log.Printf("PacketRouter: OnIn: unknown packet type %s", p.Tag)
+		}
+	*/
 }

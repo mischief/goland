@@ -36,7 +36,7 @@ func (c *Camera) SetCenter(pt image.Point) {
 	c.Rect = image.Rect(newpos.X, newpos.Y, newpos.X+c.Render.Rect.Width, newpos.Y+c.Render.Rect.Height)
 }
 
-// 
+//
 func (c *Camera) transform(pt image.Point) image.Point {
 	return pt.Sub(c.Rect.Min) //.Add(c.Rect.Size().Div(2))
 }
