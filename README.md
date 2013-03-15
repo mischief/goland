@@ -1,7 +1,7 @@
 goland
 ======
 
-a rouge-like terminal game in go
+a rogue-like terminal game in go
 
 ## Installation:
 
