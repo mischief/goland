@@ -2,6 +2,12 @@
 // (this should really have no distinction)
 package game
 
+import "encoding/gob"
+
+func init() {
+	gob.Register(&Player{})
+}
+
 type Player struct {
 	*Unit
 }

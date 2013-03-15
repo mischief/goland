@@ -2,12 +2,13 @@ config = {
   -- log file
   logfile = "goland.log",
 
-  -- map file
-  map     = "map",
+  -- server
+  server = "127.0.0.1:61507",
 
   -- debugging
   debug       = "true",
   cpuprofile  = "goland.profile",
+
 }
 
 return config
