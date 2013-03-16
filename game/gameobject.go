@@ -38,18 +38,18 @@ type Object interface {
 }
 
 type GameObject struct {
-	ID *uuid.UUID
-
+	ID    *uuid.UUID
+	Name  string
 	Pos   image.Point
 	Glyph termbox.Cell // character for this object
-
-	Tags map[string]bool
+	Tags  map[string]bool
 }
 
-func NewGameObject() *GameObject {
+func NewGameObject(name string) *GameObject {
 	var err error
 
 	gob := &GameObject{
+		Name:  name,
 		Pos:   image.ZP,
 		Glyph: termbox.Cell{'¡', termbox.ColorRed, termbox.ColorDefault},
 	}
@@ -71,7 +71,7 @@ func (gob GameObject) String() string {
 		buf.WriteString(fmt.Sprintf(" %s:%t", key, value))
 	}
 
-	return fmt.Sprintf("%s %s (%c) tags:%s", gob.ID, gob.Pos, gob.Glyph.Ch, buf.String())
+	return fmt.Sprintf("%s (%c) %s %s tags:%s", gob.Name, gob.Glyph.Ch, gob.Pos, gob.ID, buf.String())
 }
 
 func (gob *GameObject) SetPos(pos image.Point) bool {

@@ -4,7 +4,8 @@ package gutil
 import (
 	"errors"
 	"fmt"
-	"github.com/aarzilli/golua/lua"
+	//"github.com/aarzilli/golua/lua"
+	lua "github.com/xenith-studios/golua"
 )
 
 // LuaParMap: go proxy for lua string-value table
@@ -103,11 +104,11 @@ func (pm *LuaParMap) Iter() IterFunc {
 // returns nil, error on failure
 func LuaParMapFromFile(L *lua.State, filename string) (*LuaParMap, error) {
 	if L.LoadFile(filename) != 0 {
-		return nil, errors.New(L.CheckString(-1))
+		return nil, errors.New(lua.CheckString(L, -1))
 	}
 
 	if L.PCall(0, 1, 0) != 0 {
-		return nil, errors.New(L.CheckString(-1))
+		return nil, errors.New(lua.CheckString(L, -1))
 	}
 
 	return NewLuaParMap(L, -1)
@@ -116,7 +117,7 @@ func LuaParMapFromFile(L *lua.State, filename string) (*LuaParMap, error) {
 // check if type at idx on the stack is expected
 // returns error on failure
 func LuaCheckIs(L *lua.State, idx int, expected string) error {
-	got := L.LTypename(idx)
+	got := lua.LTypename(L, idx)
 	if got != expected {
 		return errors.New(fmt.Sprintf("%s: %s expected, got %s", L.ToString(idx), expected, got))
 	}

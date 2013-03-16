@@ -2,11 +2,13 @@ package main
 
 import (
 	"flag"
-	"github.com/aarzilli/golua/lua"
+	//"github.com/aarzilli/golua/lua"
 	"github.com/mischief/goland/game/gutil"
+	lua "github.com/xenith-studios/golua"
 	"log"
 	"math/rand"
 	"os"
+	"runtime"
 	"runtime/pprof"
 	"time"
 )
@@ -19,6 +21,7 @@ var (
 
 func init() {
 	rand.Seed(time.Now().UTC().UnixNano())
+	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	Lua = lua.NewState()
 
@@ -71,7 +74,7 @@ func main() {
 
 	// enable profiling
 	if cpuprofile, ok := ParMap.Get("cpuprofile"); ok {
-		log.Println("Starting profiling in file %s", cpuprofile)
+		log.Printf("Starting profiling in file %s", cpuprofile)
 		f, err := os.Create(cpuprofile)
 		if err != nil {
 			log.Fatal(err)

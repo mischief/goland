@@ -1,1 +1,5 @@
 server
+
+*.log
+*.profile
+

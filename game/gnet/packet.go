@@ -12,7 +12,12 @@ type Packet struct {
 }
 
 func (p Packet) String() string {
-	return fmt.Sprintf("(%s %s)", p.Tag, p.Data)
+	dat := "nil"
+	if p.Data != nil {
+		dat = fmt.Sprintf("%s", p.Data)
+	}
+
+	return fmt.Sprintf("(%s %s)", p.Tag, dat)
 }
 
 func NewPacket(tag string, data interface{}) *Packet {

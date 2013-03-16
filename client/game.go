@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/mischief/gochanio"
 	goland "github.com/mischief/goland/game"
 	"github.com/mischief/goland/game/gnet"
 	"github.com/mischief/goland/game/gutil"
@@ -9,17 +10,16 @@ import (
 	"github.com/nsf/tulib"
 	uuid "github.com/nu7hatch/gouuid"
 	"image"
+	"io"
 	"log"
+	"net"
 	"runtime"
 	"time"
-	//"unicode"
-	"github.com/mischief/gochanio"
-	"net"
 )
 
 const (
 	FPS_SAMPLES = 64
-	FPS_LIMIT   = 60
+	FPS_LIMIT   = 23
 )
 
 var (
@@ -65,6 +65,7 @@ type Game struct {
 	Player *goland.Player
 
 	Terminal
+	*TermLog
 	CloseChan chan bool
 
 	stats Stats
@@ -132,17 +133,17 @@ func (g *Game) Run() {
 }
 
 func (g *Game) Start() {
-	log.Print("Game starting")
+	log.Print("Game: Starting")
 
 	// network setup
 	server, ok1 := g.Parameters.Get("server")
 	if !ok1 {
-		log.Fatal("missing server in config")
+		log.Fatal("Game: Start: missing server in config")
 	}
 
 	con, err := net.Dial("tcp", server)
 	if err != nil {
-		log.Fatalf("Game: Start: %s", err)
+		log.Fatalf("Game: Start: Dial: %s", err)
 	}
 
 	g.ServerCon = con
@@ -151,29 +152,45 @@ func (g *Game) Start() {
 	g.ServerWChan = chanio.NewWriter(g.ServerCon)
 
 	if g.ServerRChan == nil || g.ServerWChan == nil {
-		log.Fatal("can't establish channels")
+		log.Fatal("Game: Start: can't establish channels")
 	}
 
-	g.ServerWChan <- gnet.NewPacket("Tconnect", nil)
+	// login
+	username, ok2 := g.Parameters.Get("username")
+	if !ok2 {
+		log.Fatal("Game: Start: missing username in config")
+	}
 
-	g.ServerWChan <- gnet.NewPacket("Tgetplayer", nil)
+	g.ServerWChan <- gnet.NewPacket("Tconnect", username)
+
+	// request the map from server
 	g.ServerWChan <- gnet.NewPacket("Tloadmap", nil)
 
+	// request the object we control
+	g.ServerWChan <- gnet.NewPacket("Tgetplayer", nil)
+
+	// anonymous function that reads packets from the server
 	go func(r <-chan interface{}) {
 		for x := range r {
 			p, ok := x.(*gnet.Packet)
 			if !ok {
-				log.Printf("bogus server packet %#v", x)
+				log.Printf("Game: Read: Bogus server packet %#v", x)
 				continue
 			}
 
 			g.HandlePacket(p)
 		}
+		log.Println("Game: Read: Disconnected from server!")
+		io.WriteString(g.TermLog, "Disconnected from server!")
 	}(g.ServerRChan)
 
 	// terminal/keyhandling setup
 	g.Terminal.Start()
 
+	// chat dialog
+	g.TermLog = NewTermLog(image.Pt(g.Terminal.Rect.Width-VIEW_START_X-VIEW_PAD_X, 5))
+
+	// ESC to quit
 	g.HandleKey(termbox.KeyEsc, func(ev termbox.Event) { g.CloseChan <- false })
 
 	// convert to func SetupDirections()
@@ -183,10 +200,10 @@ func (g *Game) Start() {
 				// lol collision
 				p := &gnet.Packet{"Taction", CARDINALS[c]}
 				g.SendPacket(p)
-				//newpos := g.Player.GetPos().Add(goland.DirTable[d])
-				//if g.Map.CheckCollision(&g.Player.GameObject, newpos) {
-				//	g.Player.SetPos(newpos)
-				//}
+				newpos := g.Player.GetPos().Add(goland.DirTable[d])
+				if g.Map.CheckCollision(nil, newpos) {
+					g.Player.SetPos(newpos)
+				}
 			})
 
 			/*
@@ -204,7 +221,7 @@ func (g *Game) Start() {
 }
 
 func (g *Game) End() {
-	log.Print("Game ending")
+	log.Print("Game: Ending")
 	g.Terminal.End()
 }
 
@@ -222,6 +239,7 @@ func (g *Game) Update(delta time.Duration) {
 
 func (g *Game) Draw() {
 
+	termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
 	// construct a current view of the 2d world and blit it
 	viewwidth := g.Terminal.Rect.Width - VIEW_START_X - VIEW_PAD_X
 	viewheight := g.Terminal.Rect.Height - VIEW_START_Y - VIEW_PAD_Y
@@ -270,6 +288,8 @@ func (g *Game) Draw() {
 	g.Terminal.DrawLabel(statsrect, statsparams, []byte(statsstr))
 	g.Terminal.DrawLabel(playerrect, playerparams, []byte(playerstr))
 
+	g.TermLog.Draw(&g.Terminal.Buffer, image.Pt(1, g.Terminal.Rect.Height-6))
+
 	// blit
 	g.Terminal.Blit(viewrect, 0, 0, &viewbuf)
 
@@ -285,10 +305,15 @@ func (g *Game) HandlePacket(pk *gnet.Packet) {
 
 	log.Printf("Game: HandlePacket: %s", pk)
 	switch pk.Tag {
+
+	// Rchat: we got a text message
+	case "Rchat":
+		chatline := pk.Data.(string)
+		io.WriteString(g.TermLog, chatline)
+
+		// Raction: something moved
 	case "Raction":
 		pl := pk.Data.(*goland.Player)
-
-		//log.Printf("got action packet for %s", pl)
 
 		for _, o := range g.Objects {
 			if *o.ID == *pl.ID {
@@ -296,26 +321,30 @@ func (g *Game) HandlePacket(pk *gnet.Packet) {
 			}
 		}
 
+		// Rnewobject: new object we need to track
 	case "Rnewobject":
 		obj := pk.Data.(*goland.GameObject)
 		g.Objects.Add(obj)
 
+		// Rdelobject: some object went away
 	case "Rdelobject":
 		obj := pk.Data.(*goland.GameObject)
 		g.Objects.RemoveObject(obj)
 
+		// Rgetplayer: find out who we control
 	case "Rgetplayer":
 		playerid := pk.Data.(*uuid.UUID)
 
 		pl := g.Objects.FindObjectByID(playerid)
 		if pl != nil {
-			player := goland.NewPlayer()
+			player := goland.NewPlayer("") // name is "" because the gameobject from the wire has our name
 			player.GameObject = pl
 			g.Player = player
 		} else {
 			log.Printf("Game: HandlePacket: can't find our player %s", playerid)
 		}
 
+		// Rloadmap: get the map data from the server
 	case "Rloadmap":
 		gmap := pk.Data.(*goland.MapChunk)
 		g.Map = gmap
