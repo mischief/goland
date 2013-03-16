@@ -27,6 +27,7 @@ const (
 	T_WALL               // can't pass/see through wall
 	T_GROUND             // passable/visible
 	T_UNIT
+	T_FLAG
 
 	DIR_UP Direction = iota // player movement instructions
 	DIR_DOWN
@@ -45,6 +46,7 @@ var (
 	GLYPH_EMPTY  = termbox.Cell{Ch: ' '}
 	GLYPH_WALL   = termbox.Cell{Ch: '#', Fg: termbox.ColorBlack, Bg: termbox.ColorWhite}
 	GLYPH_GROUND = termbox.Cell{Ch: '.', Fg: termbox.ColorGreen}
+	GLYPH_FLAG   = termbox.Cell{Ch: '%', Fg: termbox.ColorCyan}
 	GLYPH_HUMAN  = termbox.Cell{Ch: '@'}
 
 	// convert a rune to a terrain square
@@ -52,6 +54,7 @@ var (
 		' ': &Terrain{GLYPH_EMPTY, T_EMPTY},
 		'#': &Terrain{GLYPH_WALL, T_WALL},
 		'.': &Terrain{GLYPH_GROUND, T_GROUND},
+		'%': &Terrain{GLYPH_FLAG, T_FLAG},
 		'@': &Terrain{GLYPH_HUMAN, T_UNIT},
 	}
 )
@@ -73,6 +76,8 @@ func (tt *TerrainType) String() string {
 		return "ground"
 	case T_UNIT:
 		return "unit"
+	case T_FLAG:
+		return "flag"
 	}
 
 	return "unknown"
