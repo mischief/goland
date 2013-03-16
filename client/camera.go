@@ -10,7 +10,7 @@ const (
 	VIEW_START_X = 1
 	VIEW_START_Y = 1
 	VIEW_PAD_X   = 1
-	VIEW_PAD_Y   = 1
+	VIEW_PAD_Y   = 6
 )
 
 type Camera struct {

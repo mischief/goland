@@ -136,14 +136,26 @@ func (gs *GameServer) HandlePacket(cp *ClientPacket) {
 	// Tchat: chat message from a client
 	case "Tchat":
 		// broadcast chat
+		chatline := cp.Data.(string)
+		gs.SendPacketAll(gnet.NewPacket("Rchat", fmt.Sprintf("[chat] %s: %s", cp.Client.Username, chatline)))
 
 		// Taction: movement request
 	case "Taction":
 		gs.HandleActionPacket(cp)
 
+		//
 	case "Tconnect":
+		username, ok := cp.Data.(string)
+
+		if !ok {
+			cp.Reply(gnet.NewPacket("Rerror", "invalid username or conversion failed"))
+			break
+		} else {
+			cp.Client.Username = username
+		}
+
 		// make new player for client
-		newpl := game.NewPlayer()
+		newpl := game.NewPlayer(username)
 		newpl.SetPos(image.Pt(256/2, 256/2))
 
 		cp.Client.Player = newpl
@@ -156,6 +168,8 @@ func (gs *GameServer) HandlePacket(cp *ClientPacket) {
 		for _, o := range gs.Objects {
 			cp.Reply(gnet.NewPacket("Rnewobject", o))
 		}
+
+		cp.Reply(gnet.NewPacket("Rchat", "Welcome to Goland!"))
 
 	case "Tdisconnect":
 		// notify clients this player went away
@@ -194,6 +208,7 @@ func (gs *GameServer) HandleActionPacket(cp *ClientPacket) {
 	// check gameobject collision
 	for _, o := range gs.Objects {
 		if o.GetPos() == newpos {
+			cp.Reply(gnet.NewPacket("Rchat", fmt.Sprintf("Ouch! You bump into %s.", o.Name)))
 			valid = false
 			break
 		}

@@ -12,9 +12,11 @@ type Player struct {
 	*Unit
 }
 
-func NewPlayer() *Player {
-	o := NewUnit()
+func NewPlayer(name string) *Player {
+	o := NewUnit(name)
 	o.Glyph = GLYPH_HUMAN
 	p := &Player{Unit: o}
+
+	p.Tags["player"] = true
 	return p
 }

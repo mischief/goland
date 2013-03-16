@@ -17,7 +17,8 @@ type WorldSession struct {
 	ClientRChan <-chan interface{}
 	ClientWChan chan<- interface{}
 
-	ID *uuid.UUID
+	ID       *uuid.UUID
+	Username string
 
 	Pos image.Point
 
