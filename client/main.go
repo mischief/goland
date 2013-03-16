@@ -2,8 +2,9 @@ package main
 
 import (
 	"flag"
-	"github.com/aarzilli/golua/lua"
+	//"github.com/aarzilli/golua/lua"
 	"github.com/mischief/goland/game/gutil"
+	lua "github.com/xenith-studios/golua"
 	"log"
 	"os"
 	"runtime"
