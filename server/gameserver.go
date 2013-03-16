@@ -4,6 +4,7 @@
 package main
 
 import (
+	"fmt"
 	"github.com/mischief/goland/game"
 	"github.com/mischief/goland/game/gnet"
 	"github.com/mischief/goland/game/gutil"
@@ -88,7 +89,7 @@ func (gs *GameServer) Start() {
 	gs.LoadAssets()
 
 	// setup tcp listener
-	log.Printf("Starting listener")
+	log.Printf("GameServer: Starting listener")
 
 	dialstr := ":61507"
 	if dialstr, ok := gs.Parameters.Get("listener"); !ok {
@@ -112,12 +113,12 @@ func (gs *GameServer) End() {
 func (gs *GameServer) LoadAssets() {
 	mapfile, ok := gs.Parameters.Get("map")
 	if !ok {
-		log.Fatal("No map file specified")
+		log.Fatal("GameServer: LoadAssets: No map file specified")
 	}
 
-	log.Printf("Loading map chunk file: %s", mapfile)
+	log.Printf("GameServer: LoadAssets: Loading map chunk file: %s", mapfile)
 	if gs.Map = game.MapChunkFromFile(mapfile); gs.Map == nil {
-		log.Fatal("Can't open map chunk file")
+		log.Fatal("GameServer: LoadAssets: Can't open map chunk file")
 	}
 
 }
@@ -131,11 +132,13 @@ func (gs *GameServer) SendPacketAll(pk *gnet.Packet) {
 func (gs *GameServer) HandlePacket(cp *ClientPacket) {
 
 	switch cp.Tag {
+
+	// Tchat: chat message from a client
 	case "Tchat":
 		// broadcast chat
 
+		// Taction: movement request
 	case "Taction":
-		// handle movement
 		gs.HandleActionPacket(cp)
 
 	case "Tconnect":
@@ -174,13 +177,31 @@ func (gs *GameServer) HandlePacket(cp *ClientPacket) {
 	}
 }
 
+// handle a Taction packet
 func (gs *GameServer) HandleActionPacket(cp *ClientPacket) {
 	dir := cp.Data.(game.Direction)
 	newpos := cp.Client.Player.GetPos().Add(game.DirTable[dir])
+	valid := false
+
+	// check terrain collision
 	//if gs.Map.CheckCollision(cp.Client.Player, newpos) {
 	if gs.Map.CheckCollision(nil, newpos) {
-		cp.Client.Player.SetPos(newpos)
-
-		gs.SendPacketAll(gnet.NewPacket("Raction", cp.Client.Player))
+		valid = true
+	} else {
+		cp.Reply(gnet.NewPacket("Rchat", "Ouch! You bump into a wall."))
 	}
+
+	// check gameobject collision
+	for _, o := range gs.Objects {
+		if o.GetPos() == newpos {
+			valid = false
+			break
+		}
+	}
+
+	if valid {
+		cp.Client.Player.SetPos(newpos)
+	}
+
+	gs.SendPacketAll(gnet.NewPacket("Raction", cp.Client.Player))
 }
