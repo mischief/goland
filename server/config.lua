@@ -1,13 +1,15 @@
 config = {
--- map file
-  map = "map",
+  -- map file
+  map         = "map",
 
--- listen dialstring
-  listener = "127.0.0.1:61507"
+  -- listen dialstring
+  listener    = "127.0.0.1:61507",
 
--- debugging
-  --debug = "true"
-  --cpuprofile = "server.profile"
+  -- logging & debugging
+  logfile     = "server.log",
+
+  debug       = "true",
+  --cpuprofile  = "server.profile",
 }
 
 return config

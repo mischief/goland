@@ -1,13 +1,15 @@
 config = {
-  -- log file
-  logfile = "goland.log",
+  -- username
+  username    = "mischief",
 
   -- server
-  server = "127.0.0.1:61507",
+  server      = "127.0.0.1:61507",
 
-  -- debugging
+  -- logging & debugging
+  logfile     = "client.log",
+
   debug       = "true",
-  cpuprofile  = "goland.profile",
+  --cpuprofile  = "client.profile",
 
 }
 
