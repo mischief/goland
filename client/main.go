@@ -6,6 +6,7 @@ import (
 	"github.com/mischief/goland/game/gutil"
 	"log"
 	"os"
+	"runtime"
 	"runtime/pprof"
 )
 
@@ -16,6 +17,7 @@ var (
 )
 
 func init() {
+	runtime.GOMAXPROCS(runtime.NumCPU())
 	Lua = lua.NewState()
 
 	if Lua == nil {
