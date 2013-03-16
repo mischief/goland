@@ -121,6 +121,11 @@ func (gs *GameServer) LoadAssets() {
 		log.Fatal("GameServer: LoadAssets: Can't open map chunk file")
 	}
 
+	newi := game.NewItem("flag")
+
+	// set the position of the flag
+	newi.SetPos(gs.Map.RandCell())
+	gs.Objects.Add(newi.GameObject)
 }
 
 func (gs *GameServer) SendPacketAll(pk *gnet.Packet) {
