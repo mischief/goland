@@ -10,6 +10,7 @@ import (
 	"image"
 	"log"
 	"os"
+	"math/rand"
 )
 
 type TerrainType uint32
@@ -27,7 +28,6 @@ const (
 	T_WALL               // can't pass/see through wall
 	T_GROUND             // passable/visible
 	T_UNIT
-	T_FLAG
 
 	DIR_UP Direction = iota // player movement instructions
 	DIR_DOWN
@@ -47,6 +47,7 @@ var (
 	GLYPH_WALL   = termbox.Cell{Ch: '#', Fg: termbox.ColorBlack, Bg: termbox.ColorWhite}
 	GLYPH_GROUND = termbox.Cell{Ch: '.', Fg: termbox.ColorGreen}
 	GLYPH_FLAG   = termbox.Cell{Ch: '%', Fg: termbox.ColorCyan}
+	GLYPH_ITEM   = termbox.Cell{Ch: '?', Fg: termbox.ColorCyan}
 	GLYPH_HUMAN  = termbox.Cell{Ch: '@'}
 
 	// convert a rune to a terrain square
@@ -54,7 +55,6 @@ var (
 		' ': &Terrain{GLYPH_EMPTY, T_EMPTY},
 		'#': &Terrain{GLYPH_WALL, T_WALL},
 		'.': &Terrain{GLYPH_GROUND, T_GROUND},
-		'%': &Terrain{GLYPH_FLAG, T_FLAG},
 		'@': &Terrain{GLYPH_HUMAN, T_UNIT},
 	}
 )
@@ -76,8 +76,6 @@ func (tt *TerrainType) String() string {
 		return "ground"
 	case T_UNIT:
 		return "unit"
-	case T_FLAG:
-		return "flag"
 	}
 
 	return "unknown"
@@ -168,6 +166,25 @@ func (mc *MapChunk) CheckCollision(gob *GameObject, pos image.Point) bool {
 	}
 
 	return false
+}
+
+// Generates an array of (x,y) tuples of open
+// spots on the map, called open, and selects 
+// random(1, len(open))
+func (mc *MapChunk) RandCell() image.Point {
+	var open []image.Point
+
+	for x := 0; x < MAP_WIDTH; x++ {
+		for y := 0; y < MAP_HEIGHT; y++ {
+			if !mc.Locations[x][y].IsWall() {
+				open = append(open, image.Pt(x, y))
+			}
+		}
+	}
+
+	// choose random location in range or len(open)
+	i := rand.Intn(len(open))
+	return open[i]
 }
 
 func MapChunkFromFile(mapfile string) *MapChunk {
