@@ -23,7 +23,7 @@ const (
 )
 
 var (
-	CARDINALS = map[rune]goland.Direction{
+	CARDINALS = map[rune]goland.Action{
 		'w': goland.DIR_UP,
 		'k': goland.DIR_UP,
 		'a': goland.DIR_LEFT,
@@ -32,6 +32,8 @@ var (
 		'j': goland.DIR_DOWN,
 		'd': goland.DIR_RIGHT,
 		'l': goland.DIR_RIGHT,
+		',': goland.ACTION_ITEM_PICKUP,
+		'i': goland.ACTION_ITEM_LIST_INVENTORY,		
 	}
 )
 
@@ -195,7 +197,7 @@ func (g *Game) Start() {
 
 	// convert to func SetupDirections()
 	for k, v := range CARDINALS {
-		func(c rune, d goland.Direction) {
+		func(c rune, d goland.Action) {
 			g.HandleRune(c, func(_ termbox.Event) {
 				// lol collision
 				p := &gnet.Packet{"Taction", CARDINALS[c]}
