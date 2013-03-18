@@ -14,10 +14,10 @@ import (
 )
 
 type TerrainType uint32
-type Direction int
+type Action int
 
-func (d Direction) String() string {
-	return fmt.Sprintf("%s", DirTable[d])
+func (a Action) String() string {
+	return fmt.Sprintf("%s", DirTable[a])
 }
 
 const (
@@ -29,14 +29,18 @@ const (
 	T_GROUND             // passable/visible
 	T_UNIT
 
-	DIR_UP Direction = iota // player movement instructions
+	DIR_UP Action = iota // player movement instructions
 	DIR_DOWN
 	DIR_LEFT
 	DIR_RIGHT
+
+	ACTION_ITEM_PICKUP
+	ACTION_ITEM_DROP
+	ACTION_ITEM_LIST_INVENTORY
 )
 
 var (
-	DirTable = map[Direction]image.Point{
+	DirTable = map[Action]image.Point{
 		DIR_UP:    image.Point{0, -1},
 		DIR_DOWN:  image.Point{0, 1},
 		DIR_LEFT:  image.Point{-1, 0},
