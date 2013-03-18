@@ -11,6 +11,7 @@ const (
 
 type Unit struct {
 	*GameObject
+	*Inventory
 
 	Level     int
 	Hp, HpMax int
@@ -21,7 +22,7 @@ func NewUnit(name string) *Unit {
 		Hp:    DEFAULT_HP,
 		HpMax: DEFAULT_HP,
 	}
-
+	u.Inventory = NewInventory()
 	u.GameObject = NewGameObject(name)
 
 	return u

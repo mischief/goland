@@ -71,7 +71,8 @@ func (gob GameObject) String() string {
 		buf.WriteString(fmt.Sprintf(" %s:%t", key, value))
 	}
 
-	return fmt.Sprintf("%s (%c) %s %s tags:%s", gob.Name, gob.Glyph.Ch, gob.Pos, gob.ID, buf.String())
+	return fmt.Sprintf("%s (%c) %s %s tags:%s", gob.Name, gob.Glyph.Ch,
+		gob.Pos, gob.ID, buf.String())
 }
 
 func (gob *GameObject) SetPos(pos image.Point) bool {

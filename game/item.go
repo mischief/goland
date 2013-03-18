@@ -1,4 +1,4 @@
-//
+//Item is any construct which can be stored in a Unit's inventory
 package game
 
 import (
@@ -31,5 +31,6 @@ func NewItem(name string) *Item {
 }
 
 func (i Item) String() string {
-	return fmt.Sprintf("%s: <weight: %s, mod: %s, desc: %s, %s>", i.Name, i.Weight, i.Modifier, i.Desc, i.GameObject)
+	return fmt.Sprintf("%s: <weight: %s, mod: %s, desc: %s, %s>",
+		i.Name, i.Weight, i.Modifier, i.Desc, i.GameObject)
 }
