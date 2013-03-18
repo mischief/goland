@@ -200,28 +200,35 @@ func (gs *GameServer) HandlePacket(cp *ClientPacket) {
 func (gs *GameServer) HandleActionPacket(cp *ClientPacket) {
 	dir := cp.Data.(game.Direction)
 	newpos := cp.Client.Player.GetPos().Add(game.DirTable[dir])
-	valid := false
+	valid := true
 
 	// check terrain collision
 	//if gs.Map.CheckCollision(cp.Client.Player, newpos) {
-	if gs.Map.CheckCollision(nil, newpos) {
-		valid = true
-	} else {
+	if !gs.Map.CheckCollision(nil, newpos) {
+		valid = false
 		cp.Reply(gnet.NewPacket("Rchat", "Ouch! You bump into a wall."))
 	}
 
 	// check gameobject collision
 	for _, o := range gs.Objects {
+
+		// check if collision with Item and item name is flag
 		if o.GetPos() == newpos {
-			cp.Reply(gnet.NewPacket("Rchat", fmt.Sprintf("Ouch! You bump into %s.", o.Name)))
-			valid = false
-			break
+			if o.Tags["player"] {
+				cp.Reply(gnet.NewPacket("Rchat", fmt.Sprintf("Ouch! You bump into %s.", o.Name)))
+				valid = false
+				break
+			}
+			
+			if o.Tags["item"] {
+				cp.Reply(gnet.NewPacket("Rchat", fmt.Sprintf("You see a %s here.", o.Name)))
+			}
 		}
 	}
 
 	if valid {
 		cp.Client.Player.SetPos(newpos)
 	}
-
+	
 	gs.SendPacketAll(gnet.NewPacket("Raction", cp.Client.Player))
 }
