@@ -219,10 +219,9 @@ func (gs *GameServer) HandleActionPacket(cp *ClientPacket) {
 				valid = false
 				break
 			}
-			
-			if o.Tags["item"] {
+			if o.Tags["item"] and valid {
 				cp.Reply(gnet.NewPacket("Rchat", fmt.Sprintf("You see a %s here.", o.Name)))
-			}
+			}			
 		}
 	}
 
