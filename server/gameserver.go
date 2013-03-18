@@ -14,6 +14,14 @@ import (
 	"net"
 )
 
+var (
+	Actions = map[game.Action]func(*GameServer, *ClientPacket){
+	        game.ACTION_ITEM_PICKUP: Action_ItemPickup,
+	        game.ACTION_ITEM_DROP: Action_ItemDrop,
+		game.ACTION_ITEM_LIST_INVENTORY: Action_Inventory,
+	}
+)
+
 type GameServer struct {
 	flow.Graph // graph for our procs; see goflow
 
@@ -196,14 +204,39 @@ func (gs *GameServer) HandlePacket(cp *ClientPacket) {
 	}
 }
 
-// handle a Taction packet
+
+func Action_ItemPickup(gs *GameServer, cp *ClientPacket) {
+	cp.Reply(gnet.NewPacket("Rchat", "Picking up Item"))
+}
+
+func Action_ItemDrop(gs *GameServer, cp *ClientPacket) {
+	cp.Reply(gnet.NewPacket("Rchat", "Dropping Item"))
+}
+
+func Action_Inventory(gs *GameServer, cp *ClientPacket) {	
+	cp.Reply(gnet.NewPacket("Rchat", cp.Client.Player.Inventory.String()))
+}
+
 func (gs *GameServer) HandleActionPacket(cp *ClientPacket) {
-	dir := cp.Data.(game.Direction)
-	newpos := cp.Client.Player.GetPos().Add(game.DirTable[dir])
+	action := cp.Data.(game.Action)
+
+	_, isdir := game.DirTable[action]
+	if isdir {
+		gs.HandleMovementPacket(cp)
+	}
+	
+	Actions[action](gs, cp)
+	
+	gs.SendPacketAll(gnet.NewPacket("Raction", cp.Client.Player))
+}
+
+// Handle Directionals
+func (gs *GameServer) HandleMovementPacket(cp *ClientPacket) {
+	action := cp.Data.(game.Action)
+	newpos := cp.Client.Player.GetPos().Add(game.DirTable[action])
 	valid := true
 
 	// check terrain collision
-	//if gs.Map.CheckCollision(cp.Client.Player, newpos) {
 	if !gs.Map.CheckCollision(nil, newpos) {
 		valid = false
 		cp.Reply(gnet.NewPacket("Rchat", "Ouch! You bump into a wall."))
@@ -211,7 +244,7 @@ func (gs *GameServer) HandleActionPacket(cp *ClientPacket) {
 
 	// check gameobject collision
 	for _, o := range gs.Objects {
-
+		
 		// check if collision with Item and item name is flag
 		if o.GetPos() == newpos {
 			if o.Tags["player"] {
@@ -219,15 +252,14 @@ func (gs *GameServer) HandleActionPacket(cp *ClientPacket) {
 				valid = false
 				break
 			}
-			if o.Tags["item"] and valid {
+
+			if o.Tags["item"] && valid {
 				cp.Reply(gnet.NewPacket("Rchat", fmt.Sprintf("You see a %s here.", o.Name)))
-			}			
+			}
 		}
 	}
-
+	
 	if valid {
 		cp.Client.Player.SetPos(newpos)
 	}
-	
-	gs.SendPacketAll(gnet.NewPacket("Raction", cp.Client.Player))
 }
