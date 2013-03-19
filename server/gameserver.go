@@ -204,9 +204,25 @@ func (gs *GameServer) HandlePacket(cp *ClientPacket) {
 	}
 }
 
-
-func Action_ItemPickup(gs *GameServer, cp *ClientPacket) {
-	cp.Reply(gnet.NewPacket("Rchat", "Picking up Item"))
+// Prevent User from re-adding / picking up item
+// Disassociate item with map after action successful
+func Action_ItemPickup(gs *GameServer, cp *ClientPacket) {	
+	p := cp.Client.Player
+	action := cp.Data.(game.Action)
+	pos := p.GetPos().Add(game.DirTable[action])
+	for _, o := range gs.Objects {
+		if o.GetPos() == pos && o.Tags["item"]{
+			if o.Tags["gettable"] == true {
+				cp.Reply(gnet.NewPacket("Rchat", "Picking up Item"))
+				o.Tags["gettable"] = false
+				item := game.NewItem(o.Name)
+				item.GameObject = o
+				p.Inventory.AddItem(item)
+			} else {
+				cp.Reply(gnet.NewPacket("Rchat", "No item(s) to get."))
+			}
+		}
+	}
 }
 
 func Action_ItemDrop(gs *GameServer, cp *ClientPacket) {
@@ -233,7 +249,8 @@ func (gs *GameServer) HandleActionPacket(cp *ClientPacket) {
 // Handle Directionals
 func (gs *GameServer) HandleMovementPacket(cp *ClientPacket) {
 	action := cp.Data.(game.Action)
-	newpos := cp.Client.Player.GetPos().Add(game.DirTable[action])
+	p := cp.Client.Player
+	newpos := p.GetPos().Add(game.DirTable[action])
 	valid := true
 
 	// check terrain collision
@@ -249,6 +266,13 @@ func (gs *GameServer) HandleMovementPacket(cp *ClientPacket) {
 		if o.GetPos() == newpos {
 			if o.Tags["player"] {
 				cp.Reply(gnet.NewPacket("Rchat", fmt.Sprintf("Ouch! You bump into %s.", o.Name)))
+				// XXX DROP FLAG HERE
+				hasflag := p.Inventory.ContainsItemNamed("flag")
+				if hasflag {
+					flag := p.Inventory.GetItemNamed("flag")
+					p.Inventory.DropItem(flag) // _ := ?
+					flag.Tags["gettable"] = true
+				}
 				valid = false
 				break
 			}
