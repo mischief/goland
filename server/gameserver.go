@@ -207,6 +207,7 @@ func (gs *GameServer) HandlePacket(cp *ClientPacket) {
 	case "Tdisconnect":
 		// notify clients this player went away
 		gs.Objects.RemoveObject(cp.Client.Player)
+		gs.Detach(cp.Client)
 		gs.SendPacketAll(gnet.NewPacket("Rdelobject", cp.Client.Player))
 
 	case "Tgetplayer":
