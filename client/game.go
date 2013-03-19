@@ -23,7 +23,7 @@ const (
 )
 
 var (
-	CARDINALS = map[rune]goland.Direction{
+	CARDINALS = map[rune]goland.Action{
 		'w': goland.DIR_UP,
 		'k': goland.DIR_UP,
 		'a': goland.DIR_LEFT,
@@ -32,6 +32,9 @@ var (
 		'j': goland.DIR_DOWN,
 		'd': goland.DIR_RIGHT,
 		'l': goland.DIR_RIGHT,
+		',': goland.ACTION_ITEM_PICKUP,
+		'x': goland.ACTION_ITEM_DROP,
+		'i': goland.ACTION_ITEM_LIST_INVENTORY,		
 	}
 )
 
@@ -62,7 +65,7 @@ func (s *Stats) Update(delta time.Duration) {
 }
 
 type Game struct {
-	Player *goland.Player
+	Player goland.Object
 
 	Terminal
 	*TermLog
@@ -88,6 +91,8 @@ func NewGame(params *gutil.LuaParMap) *Game {
 	g.Parameters = params
 
 	g.CloseChan = make(chan bool, 1)
+
+	g.Player = goland.NewGameObject("")
 
 	//g.Objects = append(g.Objects, g.Player.GameObject)
 
@@ -195,7 +200,7 @@ func (g *Game) Start() {
 
 	// convert to func SetupDirections()
 	for k, v := range CARDINALS {
-		func(c rune, d goland.Direction) {
+		func(c rune, d goland.Action) {
 			g.HandleRune(c, func(_ termbox.Event) {
 				// lol collision
 				p := &gnet.Packet{"Taction", CARDINALS[c]}
@@ -269,7 +274,7 @@ func (g *Game) Draw() {
 
 	// draw objects
 	for _, o := range g.Objects {
-		if cam.ContainsWorldPoint(o.GetPos()) {
+		if cam.ContainsWorldPoint(o.GetPos()) && o.GetTag("visible") == true {
 			cam.Draw(o, o.GetPos())
 		}
 	}
@@ -311,35 +316,41 @@ func (g *Game) HandlePacket(pk *gnet.Packet) {
 		chatline := pk.Data.(string)
 		io.WriteString(g.TermLog, chatline)
 
-		// Raction: something moved
+	// Raction: something moved on the server
+	// Need to update the objects (sync client w/ srv)
 	case "Raction":
-		pl := pk.Data.(*goland.Player)
+		robj := pk.Data.(goland.Object) // remote object
 
 		for _, o := range g.Objects {
-			if *o.ID == *pl.ID {
-				o.SetPos(pl.GetPos())
-			}
+			if o.GetID() == robj.GetID() {
+				o.SetPos(robj.GetPos())
+			} /*else if o.GetTag("item") {
+				item := g.Objects.FindObjectByID(o.GetID())
+				if item.GetTag("gettable") {
+					item.SetPos(o.GetPos())
+				} else {
+					g.Objects.RemoveObject(item)
+				}
+			}	*/
 		}
 
 		// Rnewobject: new object we need to track
 	case "Rnewobject":
-		obj := pk.Data.(*goland.GameObject)
+		obj := pk.Data.(goland.Object)
 		g.Objects.Add(obj)
 
 		// Rdelobject: some object went away
 	case "Rdelobject":
-		obj := pk.Data.(*goland.GameObject)
+		obj := pk.Data.(goland.Object)
 		g.Objects.RemoveObject(obj)
 
 		// Rgetplayer: find out who we control
 	case "Rgetplayer":
 		playerid := pk.Data.(*uuid.UUID)
 
-		pl := g.Objects.FindObjectByID(playerid)
+		pl := g.Objects.FindObjectByID(*playerid)
 		if pl != nil {
-			player := goland.NewPlayer("") // name is "" because the gameobject from the wire has our name
-			player.GameObject = pl
-			g.Player = player
+			g.Player = pl
 		} else {
 			log.Printf("Game: HandlePacket: can't find our player %s", playerid)
 		}
