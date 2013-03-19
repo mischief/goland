@@ -25,13 +25,13 @@ func BootstrapItem(o *GameObject) *Item {
 	        Weight: 1,
 	        Modifier: 0,
 	}
-	i.Tags["item"] = true
-	return i	
+	return i
 }
 
 func NewItem(name string) *Item {
 	o := NewGameObject(name)
 	i := BootstrapItem(o)
+	i.Tags["visible"] = true
 	i.Tags["gettable"] = true
 	return i
 }

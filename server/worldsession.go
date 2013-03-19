@@ -12,19 +12,14 @@ import (
 )
 
 type WorldSession struct {
-	Con net.Conn
-
-	ClientRChan <-chan interface{}
-	ClientWChan chan<- interface{}
-
-	ID       *uuid.UUID
-	Username string
-
-	Pos image.Point
-
-	*game.Player
-
-	World *GameServer
+	Con         net.Conn           // connection to the client
+	ClientRChan <-chan interface{} // client's incoming message channel
+	ClientWChan chan<- interface{} // client's outgoing message channel
+	ID          uuid.UUID          // client's id (account id?)
+	Username    string             // associated username
+	Pos         image.Point        // XXX: what's this for?
+	Player      game.Object        // object this client controls
+	World       *GameServer        // world reference
 }
 
 func (ws *WorldSession) String() string {
@@ -33,6 +28,7 @@ func (ws *WorldSession) String() string {
 
 func NewWorldSession(w *GameServer, c net.Conn) *WorldSession {
 	var err error
+	var id *uuid.UUID
 
 	n := new(WorldSession)
 
@@ -41,9 +37,11 @@ func NewWorldSession(w *GameServer, c net.Conn) *WorldSession {
 	n.ClientRChan = chanio.NewReader(n.Con)
 	n.ClientWChan = chanio.NewWriter(n.Con)
 
-	if n.ID, err = uuid.NewV4(); err != nil {
+	if id, err = uuid.NewV4(); err != nil {
 		log.Printf("NewWorldSession: %s", err)
 		return nil
+	} else {
+		n.ID = *id
 	}
 
 	n.World = w
