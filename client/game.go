@@ -272,7 +272,14 @@ func (g *Game) Draw() {
 	// draw objects
 	for _, o := range g.Objects {
 		if cam.ContainsWorldPoint(o.GetPos()) {
-			cam.Draw(o, o.GetPos())
+			if !o.Tags["item"] {
+				cam.Draw(o, o.GetPos())
+			} else {
+				log.Printf("Item: %s <gettable: %s>", o.Name, o.Tags["gettable"])
+				if o.Tags["gettable"] == true {
+					cam.Draw(o, o.GetPos())
+				}
+			} 
 		}
 	}
 
@@ -314,13 +321,20 @@ func (g *Game) HandlePacket(pk *gnet.Packet) {
 		io.WriteString(g.TermLog, chatline)
 
 		// Raction: something moved
+
+	// Need to update the objects (sync client w/ srv)
 	case "Raction":
 		pl := pk.Data.(*goland.Player)
 
 		for _, o := range g.Objects {
 			if *o.ID == *pl.ID {
 				o.SetPos(pl.GetPos())
-			}
+			} else if o.Tags["item"] {
+				newo := g.Objects.FindObjectByID(o.ID)
+				if newo.Tags["gettable"] {
+					newo.SetPos(pl.GetPos())
+				}
+			}			
 		}
 
 		// Rnewobject: new object we need to track
