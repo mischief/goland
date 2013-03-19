@@ -23,6 +23,21 @@ func NewInventory() *Inventory {
 	return i
 }
 
+// Returns an item with .Name == name if it exists, otherwise false
+func (inv Inventory) ContainsItemNamed(name string) bool {
+	for _, i := range inv.Items {
+		if i.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+func (inv Inventory) ContainsItem(i *Item) bool {
+	_, exists :=  inv.Items[*i.GameObject.ID]
+	return exists
+}
+
 func (inv Inventory) AddItem(i *Item) {
 	inv.Items[*i.ID] = i
 }
@@ -31,8 +46,18 @@ func (inv Inventory) AddItem(i *Item) {
 // returns the dropped item to the caller
 // for further processing
 func (inv Inventory) DropItem(i *Item) *Item{
-	delete(inv.Items, *i.ID)
+	delete(inv.Items, *i.GameObject.ID)
 	return i
+}
+
+// Assumes Item exists in Inventory (or panics)
+func (inv Inventory) GetItemNamed(name string) *Item{
+	for _, i := range inv.Items {
+		if i.Name == name {
+			return i
+		}
+	}
+	return NewItem("error") // XXX!
 }
 
 func (inv Inventory) DestroyItem(i *Item) {
@@ -42,6 +67,6 @@ func (inv Inventory) DestroyItem(i *Item) {
 // Iterates over Inventory items and prints their attrs
 // Should intelligently handle printing items in qty > 1
 // assuming the items also have the same properties (modifiers, etc)
-func (u Inventory) String() string {
-	return fmt.Sprintf("%s", "XXX Placeholder")
+func (i Inventory) String() string {	
+	return fmt.Sprintf("Inventory: %s", i.Items)
 }
