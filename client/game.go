@@ -33,6 +33,7 @@ var (
 		'd': goland.DIR_RIGHT,
 		'l': goland.DIR_RIGHT,
 		',': goland.ACTION_ITEM_PICKUP,
+		'x': goland.ACTION_ITEM_DROP,
 		'i': goland.ACTION_ITEM_LIST_INVENTORY,		
 	}
 )
@@ -275,7 +276,8 @@ func (g *Game) Draw() {
 			if !o.Tags["item"] {
 				cam.Draw(o, o.GetPos())
 			} else {
-				log.Printf("Item: %s <gettable: %s>", o.Name, o.Tags["gettable"])
+				log.Printf("Item: %s <gettable: %s>",
+					o.Name, o.Tags["gettable"])
 				if o.Tags["gettable"] == true {
 					cam.Draw(o, o.GetPos())
 				}
@@ -330,9 +332,11 @@ func (g *Game) HandlePacket(pk *gnet.Packet) {
 			if *o.ID == *pl.ID {
 				o.SetPos(pl.GetPos())
 			} else if o.Tags["item"] {
-				newo := g.Objects.FindObjectByID(o.ID)
-				if newo.Tags["gettable"] {
-					newo.SetPos(pl.GetPos())
+				item := g.Objects.FindObjectByID(o.ID)
+				if item.Tags["gettable"] {
+					item.SetPos(o.GetPos())
+				} else {
+					g.Objects.RemoveObject(item)
 				}
 			}			
 		}
