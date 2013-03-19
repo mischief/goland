@@ -18,16 +18,21 @@ type Item struct {
 	Modifier int
 }
 
-func NewItem(name string) *Item {
-	o := NewGameObject(name)
+func BootstrapItem(o *GameObject) *Item {
 	o.Glyph = GLYPH_ITEM
 	i := &Item{Desc: "",
 	        GameObject: o,
 	        Weight: 1,
 	        Modifier: 0,
 	}
-	i.Tags["gettable"] = true
 	i.Tags["item"] = true
+	return i	
+}
+
+func NewItem(name string) *Item {
+	o := NewGameObject(name)
+	i := BootstrapItem(o)
+	i.Tags["gettable"] = true
 	return i
 }
 
