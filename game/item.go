@@ -24,8 +24,9 @@ func NewItem(name string) *Item {
 	i := &Item{Desc: "",
 	        GameObject: o,
 	        Weight: 1,
-	        Modifier: 0,	
+	        Modifier: 0,
 	}
+	i.Tags["gettable"] = true
 	i.Tags["item"] = true
 	return i
 }
