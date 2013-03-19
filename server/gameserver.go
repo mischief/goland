@@ -110,7 +110,6 @@ func (gs *GameServer) Start() {
 	log.Print("GameServer: Starting flow")
 
 	flow.RunNet(gs)
-
 }
 
 func (gs *GameServer) End() {
@@ -216,13 +215,11 @@ func Action_ItemPickup(gs *GameServer, cp *ClientPacket) {
 	for _, o := range gs.Objects {
 		if o.GetPos() == pos && o.Tags["item"]{
 			if o.Tags["gettable"] == true {
-				cp.Reply(gnet.NewPacket("Rchat", "Picking up Item"))
-
-				// This is evil / breaking
-				item := game.NewItem(o.Name)
-				item.GameObject = o
+				item := game.BootstrapItem(o)
+				cp.Reply(gnet.NewPacket("Rchat", fmt.Sprintf("Picking up %s", item.Name)))
 				p.Inventory.AddItem(item)
-				o.Tags["gettable"] = false
+				item.Tags["gettable"] = false
+				gs.Objects.RemoveObject(o)
 			} else {
 				cp.Reply(gnet.NewPacket("Rchat", "No item(s) to get."))
 			}
@@ -231,7 +228,22 @@ func Action_ItemPickup(gs *GameServer, cp *ClientPacket) {
 }
 
 func Action_ItemDrop(gs *GameServer, cp *ClientPacket) {
-	cp.Reply(gnet.NewPacket("Rchat", "Dropping Item"))
+	p := cp.Client.Player
+	hasflag := p.Inventory.ContainsItemNamed("flag")
+	if hasflag {
+		cp.Reply(gnet.NewPacket("Rchat", "Dropping Item"))
+		flag := p.Inventory.GetItemNamed("flag")
+		p.Inventory.DropItem(flag)
+		flag.Tags["gettable"] = true
+
+		// set the flag's init position
+		flag.SetPos(p.GetPos())
+
+		log.Println("Dropping Item: <gettable: %s>", flag.Tags["gettable"])
+
+		// add flag to the game
+		gs.Objects.Add(flag.GameObject)
+	}
 }
 
 func Action_Inventory(gs *GameServer, cp *ClientPacket) {	
@@ -240,6 +252,7 @@ func Action_Inventory(gs *GameServer, cp *ClientPacket) {
 
 func (gs *GameServer) HandleActionPacket(cp *ClientPacket) {
 	action := cp.Data.(game.Action)
+	p := cp.Client.Player
 
 	_, isdir := game.DirTable[action]
 	if isdir {
@@ -248,7 +261,7 @@ func (gs *GameServer) HandleActionPacket(cp *ClientPacket) {
 	
 	Actions[action](gs, cp)
 	
-	gs.SendPacketAll(gnet.NewPacket("Raction", cp.Client.Player))
+	gs.SendPacketAll(gnet.NewPacket("Raction", p))
 }
 
 // Handle Directionals
@@ -271,7 +284,7 @@ func (gs *GameServer) HandleMovementPacket(cp *ClientPacket) {
 		if o.GetPos() == newpos {
 			if o.Tags["player"] {
 				cp.Reply(gnet.NewPacket("Rchat", fmt.Sprintf("Ouch! You bump into %s.", o.Name)))
-				// XXX DROP FLAG HERE
+				// XXX Fixme
 				hasflag := p.Inventory.ContainsItemNamed("flag")
 				if hasflag {
 					flag := p.Inventory.GetItemNamed("flag")
