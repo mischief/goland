@@ -28,14 +28,12 @@ type GameServer struct {
 	Listener   net.Listener       // acceptor of client connections
 	PacketChan chan *ClientPacket // channel where clients packets arrive
 
-	*game.DefaultSubject //
+	*game.DefaultSubject
 
 	Sessions map[int64]*WorldSession //client list
 
 	Objects game.GameObjectMap
-	//Objects []*game.GameObject
 	Map *game.MapChunk
-
 	Parameters *gutil.LuaParMap
 }
 
@@ -118,6 +116,16 @@ func (gs *GameServer) Start() {
 func (gs *GameServer) End() {
 }
 
+func (gs *GameServer) LoadItems() {
+	newi := game.NewItem("flag")
+
+	// set the flag's init position
+	newi.SetPos(gs.Map.RandCell())
+
+	// add flag to the game
+	gs.Objects.Add(newi.GameObject)
+}
+
 func (gs *GameServer) LoadAssets() {
 	mapfile, ok := gs.Parameters.Get("map")
 	if !ok {
@@ -128,12 +136,7 @@ func (gs *GameServer) LoadAssets() {
 	if gs.Map = game.MapChunkFromFile(mapfile); gs.Map == nil {
 		log.Fatal("GameServer: LoadAssets: Can't open map chunk file")
 	}
-
-	newi := game.NewItem("flag")
-
-	// set the position of the flag
-	newi.SetPos(gs.Map.RandCell())
-	gs.Objects.Add(newi.GameObject)
+	gs.LoadItems()
 }
 
 func (gs *GameServer) SendPacketAll(pk *gnet.Packet) {
@@ -214,10 +217,12 @@ func Action_ItemPickup(gs *GameServer, cp *ClientPacket) {
 		if o.GetPos() == pos && o.Tags["item"]{
 			if o.Tags["gettable"] == true {
 				cp.Reply(gnet.NewPacket("Rchat", "Picking up Item"))
-				o.Tags["gettable"] = false
+
+				// This is evil / breaking
 				item := game.NewItem(o.Name)
 				item.GameObject = o
 				p.Inventory.AddItem(item)
+				o.Tags["gettable"] = false
 			} else {
 				cp.Reply(gnet.NewPacket("Rchat", "No item(s) to get."))
 			}
@@ -277,7 +282,7 @@ func (gs *GameServer) HandleMovementPacket(cp *ClientPacket) {
 				break
 			}
 
-			if o.Tags["item"] && valid {
+			if o.Tags["item"] && o.Tags["gettable"] && valid {
 				cp.Reply(gnet.NewPacket("Rchat", fmt.Sprintf("You see a %s here.", o.Name)))
 			}
 		}
