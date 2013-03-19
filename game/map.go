@@ -9,8 +9,8 @@ import (
 	"github.com/nsf/tulib"
 	"image"
 	"log"
-	"os"
 	"math/rand"
+	"os"
 )
 
 type TerrainType uint32
@@ -173,7 +173,7 @@ func (mc *MapChunk) CheckCollision(gob *GameObject, pos image.Point) bool {
 }
 
 // Generates an array of (x,y) tuples of open
-// spots on the map, called open, and selects 
+// spots on the map, called open, and selects
 // random(1, len(open))
 func (mc *MapChunk) RandCell() image.Point {
 	var open []image.Point

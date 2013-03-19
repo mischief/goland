@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/mischief/goland/game/gnet"
+	"log"
 )
 
 type ClientPacket struct {
@@ -15,5 +16,6 @@ func (cp ClientPacket) String() string {
 }
 
 func (cp *ClientPacket) Reply(pk *gnet.Packet) {
+	log.Printf("ClientPacket: Reply: %s -> %s %s", cp.Packet, cp.Client.Con.RemoteAddr(), pk)
 	cp.Client.ClientWChan <- pk
 }

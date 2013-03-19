@@ -34,7 +34,7 @@ var (
 		'l': goland.DIR_RIGHT,
 		',': goland.ACTION_ITEM_PICKUP,
 		'x': goland.ACTION_ITEM_DROP,
-		'i': goland.ACTION_ITEM_LIST_INVENTORY,		
+		'i': goland.ACTION_ITEM_LIST_INVENTORY,
 	}
 )
 
@@ -283,12 +283,12 @@ func (g *Game) Draw() {
 	statsparams := &tulib.LabelParams{termbox.ColorRed, termbox.ColorBlack, tulib.AlignLeft, '.', false}
 	statsrect := tulib.Rect{1, 0, 60, 1}
 
-	statsstr := fmt.Sprintf("%s TERM %s", g.Terminal.Size(), g.stats)
+	statsstr := fmt.Sprintf("Terminal: %s TERM %s", g.Terminal.Size(), g.stats)
 
 	playerparams := &tulib.LabelParams{termbox.ColorRed, termbox.ColorBlack, tulib.AlignLeft, '.', false}
 	playerrect := tulib.Rect{1, g.Terminal.Rect.Height - 1, g.Terminal.Rect.Width, 1}
 
-	playerstr := fmt.Sprintf("%s Cam.Pos: %s Cam.Rect: %v", g.Player, cam.Pos, cam.Rect)
+	playerstr := fmt.Sprintf("User: %s Pos: %s", g.Player.GetName(), g.Player.GetPos())
 
 	g.Terminal.DrawLabel(statsrect, statsparams, []byte(statsstr))
 	g.Terminal.DrawLabel(playerrect, playerparams, []byte(playerstr))

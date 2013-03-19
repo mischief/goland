@@ -12,7 +12,7 @@ const (
 )
 
 type Inventory struct {
-	Items map[uuid.UUID]*Item
+	Items    map[uuid.UUID]*Item
 	Capacity int
 }
 
@@ -34,7 +34,7 @@ func (inv Inventory) ContainsItemNamed(name string) bool {
 }
 
 func (inv Inventory) ContainsItem(i *Item) bool {
-	_, exists :=  inv.Items[*i.GameObject.ID]
+	_, exists := inv.Items[*i.GameObject.ID]
 	return exists
 }
 
@@ -42,16 +42,16 @@ func (inv Inventory) AddItem(i *Item) {
 	inv.Items[*i.ID] = i
 }
 
-// Removes an item from an Invetory yet 
+// Removes an item from an Invetory yet
 // returns the dropped item to the caller
 // for further processing
-func (inv Inventory) DropItem(i *Item) *Item{
+func (inv Inventory) DropItem(i *Item) *Item {
 	delete(inv.Items, *i.GameObject.ID)
 	return i
 }
 
 // Assumes Item exists in Inventory (or panics)
-func (inv Inventory) GetItemNamed(name string) *Item{
+func (inv Inventory) GetItemNamed(name string) *Item {
 	for _, i := range inv.Items {
 		if i.Name == name {
 			return i
@@ -67,6 +67,6 @@ func (inv Inventory) DestroyItem(i *Item) {
 // Iterates over Inventory items and prints their attrs
 // Should intelligently handle printing items in qty > 1
 // assuming the items also have the same properties (modifiers, etc)
-func (i Inventory) String() string {	
+func (i Inventory) String() string {
 	return fmt.Sprintf("Inventory: %s", i.Items)
 }

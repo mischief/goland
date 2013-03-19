@@ -29,13 +29,12 @@ func NewUnit(name string) *Unit {
 }
 
 // Checks if a Unit HasItem *Item
-func (u Unit) HasItem (i *Item) bool {
+func (u Unit) HasItem(i *Item) bool {
 	if u.Inventory.ContainsItem(i) {
 		return true
-	} 
+	}
 	return false
 }
-
 
 func (u Unit) String() string {
 	return fmt.Sprintf("%s: Hp: %d(%d) %s", u.Name, u.Hp, u.HpMax, u.GameObject)

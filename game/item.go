@@ -13,17 +13,17 @@ func init() {
 type Item struct {
 	*GameObject
 
-	Desc string
-	Weight int
+	Desc     string
+	Weight   int
 	Modifier int
 }
 
 func BootstrapItem(o *GameObject) *Item {
 	o.Glyph = GLYPH_ITEM
 	i := &Item{Desc: "",
-	        GameObject: o,
-	        Weight: 1,
-	        Modifier: 0,
+		GameObject: o,
+		Weight:     1,
+		Modifier:   0,
 	}
 	return i
 }
