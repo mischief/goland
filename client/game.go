@@ -172,7 +172,12 @@ func (g *Game) Start() {
 	g.ServerWChan <- gnet.NewPacket("Tloadmap", nil)
 
 	// request the object we control
-	g.ServerWChan <- gnet.NewPacket("Tgetplayer", nil)
+	// XXX: the delay is to fix a bug regarding ordering of packets.
+	// if the client gets the response to this before he is notified
+	// that the object exists, it will barf, so we delay this request.
+	time.AfterFunc(50*time.Millisecond, func() {
+		g.ServerWChan <- gnet.NewPacket("Tgetplayer", nil)
+	})
 
 	// anonymous function that reads packets from the server
 	go func(r <-chan interface{}) {
