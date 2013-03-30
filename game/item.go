@@ -11,32 +11,22 @@ func init() {
 }
 
 type Item struct {
-	*GameObject
+	Object
 
 	Desc     string
 	Weight   int
 	Modifier int
 }
 
-func BootstrapItem(o *GameObject) *Item {
-	o.Glyph = GLYPH_ITEM
-	i := &Item{Desc: "",
-		GameObject: o,
-		Weight:     1,
-		Modifier:   0,
-	}
-	return i
-}
-
 func NewItem(name string) *Item {
-	o := NewGameObject(name)
-	i := BootstrapItem(o)
-	i.Tags["visible"] = true
-	i.Tags["gettable"] = true
+	i := &Item{Object: NewGameObject(name)}
+	//	i := BootstrapItem(o)
+	//	i.Tags["visible"] = true
+	//	i.Tags["gettable"] = true
 	return i
 }
 
 func (i Item) String() string {
 	return fmt.Sprintf("%s: <weight: %s, mod: %s, desc: %s, %s>",
-		i.Name, i.Weight, i.Modifier, i.Desc, i.GameObject)
+		i.GetName(), i.Weight, i.Modifier, i.Desc, i.Object)
 }

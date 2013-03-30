@@ -2,9 +2,8 @@ package main
 
 import (
 	"flag"
-	//"github.com/aarzilli/golua/lua"
+	"github.com/aarzilli/golua/lua"
 	"github.com/mischief/goland/game/gutil"
-	lua "github.com/xenith-studios/golua"
 	"log"
 	"math/rand"
 	"os"
@@ -23,13 +22,8 @@ func init() {
 	rand.Seed(time.Now().UTC().UnixNano())
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
-	Lua = lua.NewState()
-
-	if Lua == nil {
-		log.Fatal("Can't make lua state")
-	}
-
-	Lua.OpenLibs()
+	//	Lua = lua.NewState()
+	Lua = gutil.LuaInit()
 }
 
 func main() {
@@ -55,26 +49,26 @@ func main() {
 		log.SetOutput(f)
 	}
 
-	log.Print("-- Logging started --")
+	log.Print("Main: Logging started")
 
 	// log panics
 	defer func() {
 		if r := recover(); r != nil {
-			log.Printf("Recovered from %v", r)
+			log.Printf("Main: Recovered from %v", r)
 		}
 	}()
 
-	log.Printf("Config loaded from %s", *configfile)
+	log.Printf("Main: Config loaded from %s", *configfile)
 
 	// dump config
 	it := ParMap.Iter()
 	for k, v, b := it(); b != false; k, v, b = it() {
-		log.Printf(" %s -> %s", k, v)
+		log.Printf("Main: Config: %s -> %s", k, v)
 	}
 
 	// enable profiling
 	if cpuprofile, ok := ParMap.Get("cpuprofile"); ok {
-		log.Printf("Starting profiling in file %s", cpuprofile)
+		log.Printf("Main: Starting profiling in file %s", cpuprofile)
 		f, err := os.Create(cpuprofile)
 		if err != nil {
 			log.Fatal(err)
@@ -84,9 +78,12 @@ func main() {
 		defer pprof.StopCPUProfile()
 	}
 
-	gs := NewGameServer(ParMap)
+	gs, err := NewGameServer(ParMap)
+	if err != nil {
+		log.Println(err)
+	} else {
+		gs.Run()
+	}
 
-	gs.Run()
-
-	log.Println("-- Logging ended --")
+	log.Println("Main: Logging ended")
 }

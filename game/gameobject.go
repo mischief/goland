@@ -7,15 +7,31 @@ import (
 	"fmt"
 	"github.com/nsf/termbox-go"
 	"github.com/nsf/tulib"
-	uuid "github.com/nu7hatch/gouuid"
+	//	uuid "github.com/nu7hatch/gouuid"
 	"image"
-	"log"
+	//	"log"
 	"time"
+)
+
+type GID int
+
+var (
+	idchan chan GID
 )
 
 func init() {
 	gob.Register(&GameObject{})
-	gob.Register(&uuid.UUID{})
+	gob.Register(GID(0))
+
+	idchan = make(chan GID)
+
+	go func() {
+		var id GID
+		for {
+			id++
+			idchan <- id
+		}
+	}()
 }
 
 // TODO: remove need for this when drawing terrain with camera.Draw
@@ -26,15 +42,15 @@ type Renderable interface {
 
 type Object interface {
 	// Setter/getter for ID
-	SetID(id uuid.UUID)
-	GetID() uuid.UUID
+	SetID(id GID)
+	GetID() GID
 
 	SetName(name string)
 	GetName() string
 
 	// Setter/getter for position
-	SetPos(pos image.Point) bool
-	GetPos() image.Point
+	SetPos(x, y int) bool
+	GetPos() (x, y int)
 
 	// Setter/getter for the glyph
 	SetGlyph(termbox.Cell)
@@ -55,7 +71,7 @@ type Object interface {
 }
 
 type GameObject struct {
-	ID         *uuid.UUID      // game object id
+	ID         GID             // game object id
 	Name       string          // object name
 	Pos        image.Point     // object world coordinates
 	Glyph      termbox.Cell    // character for this object
@@ -63,22 +79,15 @@ type GameObject struct {
 	SubObjects GameObjectMap   // objects associated with this one
 }
 
-func NewGameObject(name string) *GameObject {
-	var err error
-
+func NewGameObject(name string) Object {
 	gob := &GameObject{
-		Name:  name,
-		Pos:   image.ZP,
-		Glyph: termbox.Cell{'¡', termbox.ColorRed, termbox.ColorDefault},
+		ID:         <-idchan,
+		Name:       name,
+		Pos:        image.ZP,
+		Glyph:      termbox.Cell{'¡', termbox.ColorRed, termbox.ColorDefault},
+		Tags:       make(map[string]bool),
+		SubObjects: NewGameObjectMap(),
 	}
-
-	if gob.ID, err = uuid.NewV4(); err != nil {
-		log.Printf("NewGameObject: %s", err)
-		return nil
-	}
-
-	gob.Tags = make(map[string]bool)
-	gob.SubObjects = NewGameObjectMap()
 
 	return gob
 }
@@ -90,16 +99,16 @@ func (gob GameObject) String() string {
 		buf.WriteString(fmt.Sprintf(" %s:%t", key, value))
 	}
 
-	return fmt.Sprintf("%s (%c) %s %s tags:%s", gob.Name, gob.Glyph.Ch,
+	return fmt.Sprintf("%s (%c) %s %d tags:%s", gob.Name, gob.Glyph.Ch,
 		gob.Pos, gob.ID, buf.String())
 }
 
-func (gob *GameObject) SetID(id uuid.UUID) {
-	gob.ID = &id
+func (gob *GameObject) SetID(id GID) {
+	gob.ID = id
 }
 
-func (gob *GameObject) GetID() uuid.UUID {
-	return *gob.ID
+func (gob *GameObject) GetID() GID {
+	return gob.ID
 }
 
 func (gob *GameObject) SetName(name string) {
@@ -110,13 +119,14 @@ func (gob *GameObject) GetName() string {
 	return gob.Name
 }
 
-func (gob *GameObject) SetPos(pos image.Point) bool {
-	gob.Pos = pos
+func (gob *GameObject) SetPos(x, y int) bool {
+	gob.Pos.X = x
+	gob.Pos.Y = y
 	return true
 }
 
-func (gob *GameObject) GetPos() image.Point {
-	return gob.Pos
+func (gob *GameObject) GetPos() (x, y int) {
+	return gob.Pos.X, gob.Pos.Y
 }
 
 func (gob *GameObject) SetGlyph(glyph termbox.Cell) {
@@ -158,7 +168,7 @@ func (gob *GameObject) Draw(buf *tulib.Buffer, pos image.Point) {
 }
 
 // handy interface for a collection of game objects
-type GameObjectMap map[uuid.UUID]Object
+type GameObjectMap map[GID]Object
 
 func NewGameObjectMap() GameObjectMap {
 	g := make(GameObjectMap)
@@ -176,7 +186,7 @@ func (gom GameObjectMap) RemoveObject(obj Object) {
 	delete(gom, obj.GetID())
 }
 
-func (gom GameObjectMap) FindObjectByID(id uuid.UUID) Object {
+func (gom GameObjectMap) FindObjectByID(id GID) Object {
 	o, ok := gom[id]
 
 	if !ok {
@@ -184,4 +194,10 @@ func (gom GameObjectMap) FindObjectByID(id uuid.UUID) Object {
 	}
 
 	return o
+}
+
+func SamePos(ob1, ob2 Object) bool {
+	x1, y1 := ob1.GetPos()
+	x2, y2 := ob2.GetPos()
+	return x1 == x2 && y1 == y2
 }

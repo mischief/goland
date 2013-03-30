@@ -14,9 +14,9 @@ type Player struct {
 
 func NewPlayer(name string) *Player {
 	o := NewUnit(name)
-	o.Glyph = GLYPH_HUMAN
+	o.SetGlyph(GLYPH_HUMAN)
 	p := &Player{Unit: o}
 
-	p.Tags["player"] = true
+	p.SetTag("player", true)
 	return p
 }

@@ -4,9 +4,11 @@ package gutil
 import (
 	"errors"
 	"fmt"
-	//"github.com/aarzilli/golua/lua"
-	lua "github.com/xenith-studios/golua"
+	"github.com/aarzilli/golua/lua"
+	"github.com/stevedonovan/luar"
 )
+
+// TODO: remove this luaparmap in favor of luar's proxies
 
 // LuaParMap: go proxy for lua string-value table
 // currently supporting anything tostring()'able
@@ -104,11 +106,11 @@ func (pm *LuaParMap) Iter() IterFunc {
 // returns nil, error on failure
 func LuaParMapFromFile(L *lua.State, filename string) (*LuaParMap, error) {
 	if L.LoadFile(filename) != 0 {
-		return nil, errors.New(lua.CheckString(L, -1))
+		return nil, errors.New(L.CheckString(-1))
 	}
 
 	if L.PCall(0, 1, 0) != 0 {
-		return nil, errors.New(lua.CheckString(L, -1))
+		return nil, errors.New(L.CheckString(-1))
 	}
 
 	return NewLuaParMap(L, -1)
@@ -117,10 +119,46 @@ func LuaParMapFromFile(L *lua.State, filename string) (*LuaParMap, error) {
 // check if type at idx on the stack is expected
 // returns error on failure
 func LuaCheckIs(L *lua.State, idx int, expected string) error {
-	got := lua.LTypename(L, idx)
+	got := L.LTypename(idx)
 	if got != expected {
 		return errors.New(fmt.Sprintf("%s: %s expected, got %s", L.ToString(idx), expected, got))
 	}
 
 	return nil
+}
+
+// function that lua will call before aborting.
+// we override this because normally lua longjmps,
+// but that breaks go's defer/panic. so we just panic.
+func LuaAtPanic(L *lua.State) int {
+	panic(errors.New(L.ToString(-1)))
+	return 0
+}
+
+// TODO: better error handling
+func LuaInit() *lua.State {
+	L := luar.Init()
+	L.AtPanic(LuaAtPanic)
+
+	return L
+}
+
+// Wrapper around lua_call that traps panics as errors
+// returns nil if no error
+func LuaSafeCall(L *lua.State, nargs, nresults int) (err error) {
+	defer func() {
+		if err2 := recover(); err2 != nil {
+			if _, ok := err2.(error); ok {
+				err = err2.(error)
+			}
+			return
+		}
+	}()
+
+	err = nil
+
+	L.Call(0, 0)
+
+	return
+
 }

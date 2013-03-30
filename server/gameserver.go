@@ -5,14 +5,17 @@ package main
 
 import (
 	"fmt"
+	"github.com/aarzilli/golua/lua"
 	"github.com/mischief/goland/game"
 	"github.com/mischief/goland/game/gnet"
 	"github.com/mischief/goland/game/gutil"
-	uuid "github.com/nu7hatch/gouuid"
+	"github.com/stevedonovan/luar"
 	"github.com/trustmaster/goflow"
 	"image"
 	"log"
 	"net"
+	"path"
+	"reflect"
 )
 
 var (
@@ -21,6 +24,8 @@ var (
 		game.ACTION_ITEM_DROP:           Action_ItemDrop,
 		game.ACTION_ITEM_LIST_INVENTORY: Action_Inventory,
 	}
+
+	GS *GameServer
 )
 
 type GameServer struct {
@@ -31,17 +36,20 @@ type GameServer struct {
 
 	*game.DefaultSubject
 
-	Sessions map[uuid.UUID]*WorldSession //client list
+	Sessions map[game.GID]*WorldSession //client list
 
 	Objects    game.GameObjectMap
 	Map        *game.MapChunk
 	Parameters *gutil.LuaParMap
+
+	Lua *lua.State
 }
 
-func NewGameServer(params *gutil.LuaParMap) *GameServer {
+func NewGameServer(params *gutil.LuaParMap) (*GameServer, error) {
 
 	// flow network setup
 	gs := new(GameServer)
+	GS = gs
 	gs.Parameters = params
 	gs.InitGraphState()
 
@@ -64,7 +72,10 @@ func NewGameServer(params *gutil.LuaParMap) *GameServer {
 	// objects setup
 	gs.Objects = game.NewGameObjectMap()
 
-	return gs
+	// lua state
+	gs.Lua = gutil.LuaInit()
+
+	return gs, nil
 }
 
 func (gs *GameServer) Run() {
@@ -93,7 +104,10 @@ func (gs *GameServer) Start() {
 
 	// load assets
 	log.Print("GameServer: Loading assets")
-	gs.LoadAssets()
+	if gs.LoadAssets() != true {
+		log.Printf("GameServer: LoadAssets failed")
+		return
+	}
 
 	// setup tcp listener
 	log.Printf("GameServer: Starting listener")
@@ -116,31 +130,56 @@ func (gs *GameServer) Start() {
 func (gs *GameServer) End() {
 }
 
-func (gs *GameServer) LoadItems() {
-	newi := game.NewItem("flag")
-	newi.SetTag("visible", true)
-	newi.SetTag("gettable", true)
-	newi.SetTag("item", true)
+func (gs *GameServer) LoadMap(file string) bool {
+	if gs.Map = game.MapChunkFromFile(file); gs.Map == nil {
+		log.Printf("GameServer: LoadMap: failed loading %s", file)
+		return false
+	}
 
-	// set the flag's init position
-	//newi.SetPos(gs.Map.RandCell()) // maybe later player hater
-	newi.SetPos(image.Pt(256/2-5, 256/2+5))
-
-	// add flag to the game
-	gs.Objects.Add(newi.GameObject)
+	log.Printf("GameServer: LoadMap: loaded map %s", file)
+	return true
 }
 
-func (gs *GameServer) LoadAssets() {
-	mapfile, ok := gs.Parameters.Get("map")
+func (gs *GameServer) AddObject(obj game.Object) {
+	log.Printf("Adding object %s", obj)
+	gs.Objects.Add(obj)
+}
+
+func (gs *GameServer) LuaLog(fmt string, args ...interface{}) {
+	log.Printf("GameServer: Lua: "+fmt, args...)
+}
+
+// TODO: move these bindings into another file
+func (gs *GameServer) BindLua() {
+	luar.GoToLua(gs.Lua, nil, reflect.ValueOf(gs))
+	gs.Lua.SetGlobal("gameserver")
+
+	Lua_OpenObjectLib(gs.Lua)
+}
+
+// load everything from lua scripts
+func (gs *GameServer) LoadAssets() bool {
+	gs.BindLua()
+
+	scriptdir, ok := gs.Parameters.Get("scriptdir")
 	if !ok {
-		log.Fatal("GameServer: LoadAssets: No map file specified")
+		log.Printf("GameServer: LoadAssets: No scriptdir specified")
+		return false
 	}
 
-	log.Printf("GameServer: LoadAssets: Loading map chunk file: %s", mapfile)
-	if gs.Map = game.MapChunkFromFile(mapfile); gs.Map == nil {
-		log.Fatal("GameServer: LoadAssets: Can't open map chunk file")
+	if gs.Lua.LoadFile(path.Join(scriptdir, "system.lua")) != 0 {
+		log.Printf("GameServer: LoadAssets: LoadFile: %s", gs.Lua.CheckString(-1))
+		gs.Lua.Pop(-1) // pop error
+		return false
 	}
-	gs.LoadItems()
+
+	if err := gutil.LuaSafeCall(gs.Lua, 0, 0); err != nil {
+		log.Printf("GameServer: LoadAssets: LuaSafeCall: %s", gs.Lua.CheckString(-1))
+		gs.Lua.Pop(-1) // pop error
+		return false
+	}
+
+	return true
 }
 
 func (gs *GameServer) SendPacketAll(pk *gnet.Packet) {
@@ -163,7 +202,7 @@ func (gs *GameServer) HandlePacket(cp *ClientPacket) {
 	case "Taction":
 		gs.HandleActionPacket(cp)
 
-		//
+		// Tconnect: user establishes new connection
 	case "Tconnect":
 		username, ok := cp.Data.(string)
 
@@ -183,7 +222,7 @@ func (gs *GameServer) HandlePacket(cp *ClientPacket) {
 		// setting this lets players pick up other players, lol
 		//newplayer.SetTag("gettable", true)
 		newplayer.SetGlyph(game.GLYPH_HUMAN)
-		newplayer.SetPos(image.Pt(256/2, 256/2))
+		newplayer.SetPos(256/2, 256/2)
 
 		// set the session's object
 		cp.Client.Player = newplayer
@@ -235,12 +274,12 @@ func Action_ItemPickup(gs *GameServer, cp *ClientPacket) {
 
 	for _, o := range gs.Objects {
 		// if same pos.. and gettable
-		if o.GetPos() == p.GetPos() && o.GetTag("gettable") {
+		if game.SamePos(o, p) && o.GetTag("gettable") {
 			// pickup item.
 			log.Printf("GameServer: Action_ItemPickup: %s picking up %s", p, o)
 			o.SetTag("visible", false)
 			o.SetTag("gettable", false)
-			o.SetPos(image.ZP)
+			o.SetPos(0, 0)
 			p.AddSubObject(o)
 
 			// update clients with the new state of this object
@@ -308,7 +347,9 @@ func (gs *GameServer) HandleActionPacket(cp *ClientPacket) {
 func (gs *GameServer) HandleMovementPacket(cp *ClientPacket) {
 	action := cp.Data.(game.Action)
 	p := cp.Client.Player
-	newpos := p.GetPos().Add(game.DirTable[action])
+	offset := game.DirTable[action]
+	oldposx, oldposy := p.GetPos()
+	newpos := image.Pt(oldposx+offset.X, oldposy+offset.Y)
 	valid := true
 
 	// check terrain collision
@@ -321,7 +362,8 @@ func (gs *GameServer) HandleMovementPacket(cp *ClientPacket) {
 	for _, o := range gs.Objects {
 
 		// check if collision with Item and item name is flag
-		if o.GetPos() == newpos {
+		px, py := o.GetPos()
+		if px == newpos.X && py == newpos.Y {
 			if o.GetTag("player") {
 				cp.Reply(gnet.NewPacket("Rchat", fmt.Sprintf("Ouch! You bump into %s.", o.GetName())))
 
@@ -345,6 +387,6 @@ func (gs *GameServer) HandleMovementPacket(cp *ClientPacket) {
 	}
 
 	if valid {
-		cp.Client.Player.SetPos(newpos)
+		cp.Client.Player.SetPos(newpos.X, newpos.Y)
 	}
 }

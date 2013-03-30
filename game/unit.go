@@ -10,7 +10,7 @@ const (
 )
 
 type Unit struct {
-	*GameObject
+	Object
 	*Inventory
 
 	Level     int
@@ -23,7 +23,9 @@ func NewUnit(name string) *Unit {
 		HpMax: DEFAULT_HP,
 	}
 	u.Inventory = NewInventory()
-	u.GameObject = NewGameObject(name)
+
+	ob := NewGameObject(name)
+	u.Object = ob
 
 	return u
 }
@@ -37,5 +39,5 @@ func (u Unit) HasItem(i *Item) bool {
 }
 
 func (u Unit) String() string {
-	return fmt.Sprintf("%s: Hp: %d(%d) %s", u.Name, u.Hp, u.HpMax, u.GameObject)
+	return fmt.Sprintf("%s: Hp: %d(%d) %s", u.GetName(), u.Hp, u.HpMax, u.Object)
 }

@@ -3,7 +3,8 @@ package game
 
 import (
 	"fmt"
-	uuid "github.com/nu7hatch/gouuid"
+
+//	uuid "github.com/nu7hatch/gouuid"
 )
 
 const (
@@ -12,13 +13,13 @@ const (
 )
 
 type Inventory struct {
-	Items    map[uuid.UUID]*Item
+	Items    map[GID]*Item
 	Capacity int
 }
 
 func NewInventory() *Inventory {
 	i := &Inventory{Capacity: DEFAULT_INVENTORY_CAP,
-		Items: make(map[uuid.UUID]*Item),
+		Items: make(map[GID]*Item),
 	}
 	return i
 }
@@ -26,7 +27,7 @@ func NewInventory() *Inventory {
 // Returns an item with .Name == name if it exists, otherwise false
 func (inv Inventory) ContainsItemNamed(name string) bool {
 	for _, i := range inv.Items {
-		if i.Name == name {
+		if i.GetName() == name {
 			return true
 		}
 	}
@@ -34,26 +35,26 @@ func (inv Inventory) ContainsItemNamed(name string) bool {
 }
 
 func (inv Inventory) ContainsItem(i *Item) bool {
-	_, exists := inv.Items[*i.GameObject.ID]
+	_, exists := inv.Items[i.GetID()]
 	return exists
 }
 
 func (inv Inventory) AddItem(i *Item) {
-	inv.Items[*i.ID] = i
+	inv.Items[i.GetID()] = i
 }
 
 // Removes an item from an Invetory yet
 // returns the dropped item to the caller
 // for further processing
 func (inv Inventory) DropItem(i *Item) *Item {
-	delete(inv.Items, *i.GameObject.ID)
+	delete(inv.Items, i.GetID())
 	return i
 }
 
 // Assumes Item exists in Inventory (or panics)
 func (inv Inventory) GetItemNamed(name string) *Item {
 	for _, i := range inv.Items {
-		if i.Name == name {
+		if i.GetName() == name {
 			return i
 		}
 	}
@@ -61,7 +62,7 @@ func (inv Inventory) GetItemNamed(name string) *Item {
 }
 
 func (inv Inventory) DestroyItem(i *Item) {
-	delete(inv.Items, *i.ID)
+	delete(inv.Items, i.GetID())
 }
 
 // Iterates over Inventory items and prints their attrs

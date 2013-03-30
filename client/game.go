@@ -3,12 +3,11 @@ package main
 import (
 	"fmt"
 	"github.com/mischief/gochanio"
-	goland "github.com/mischief/goland/game"
+	"github.com/mischief/goland/game"
 	"github.com/mischief/goland/game/gnet"
 	"github.com/mischief/goland/game/gutil"
 	"github.com/nsf/termbox-go"
 	"github.com/nsf/tulib"
-	uuid "github.com/nu7hatch/gouuid"
 	"image"
 	"io"
 	"log"
@@ -23,18 +22,18 @@ const (
 )
 
 var (
-	CARDINALS = map[rune]goland.Action{
-		'w': goland.DIR_UP,
-		'k': goland.DIR_UP,
-		'a': goland.DIR_LEFT,
-		'h': goland.DIR_LEFT,
-		's': goland.DIR_DOWN,
-		'j': goland.DIR_DOWN,
-		'd': goland.DIR_RIGHT,
-		'l': goland.DIR_RIGHT,
-		',': goland.ACTION_ITEM_PICKUP,
-		'x': goland.ACTION_ITEM_DROP,
-		'i': goland.ACTION_ITEM_LIST_INVENTORY,
+	CARDINALS = map[rune]game.Action{
+		'w': game.DIR_UP,
+		'k': game.DIR_UP,
+		'a': game.DIR_LEFT,
+		'h': game.DIR_LEFT,
+		's': game.DIR_DOWN,
+		'j': game.DIR_DOWN,
+		'd': game.DIR_RIGHT,
+		'l': game.DIR_RIGHT,
+		',': game.ACTION_ITEM_PICKUP,
+		'x': game.ACTION_ITEM_DROP,
+		'i': game.ACTION_ITEM_LIST_INVENTORY,
 	}
 )
 
@@ -65,7 +64,7 @@ func (s *Stats) Update(delta time.Duration) {
 }
 
 type Game struct {
-	Player goland.Object
+	Player game.Object
 
 	Terminal
 	*TermLog
@@ -73,9 +72,8 @@ type Game struct {
 
 	stats Stats
 
-	Objects goland.GameObjectMap
-	//	Objects []*goland.GameObject // all known objects
-	Map *goland.MapChunk
+	Objects game.GameObjectMap
+	Map *game.MapChunk
 
 	Parameters *gutil.LuaParMap
 
@@ -87,12 +85,12 @@ type Game struct {
 
 func NewGame(params *gutil.LuaParMap) *Game {
 	g := Game{}
-	g.Objects = goland.NewGameObjectMap()
+	g.Objects = game.NewGameObjectMap()
 	g.Parameters = params
 
 	g.CloseChan = make(chan bool, 1)
 
-	g.Player = goland.NewGameObject("")
+	g.Player = game.NewGameObject("")
 
 	//g.Objects = append(g.Objects, g.Player.GameObject)
 
@@ -108,7 +106,7 @@ func (g *Game) Run() {
 
 	g.Start()
 
-	timer := goland.NewDeltaTimer()
+	timer := game.NewDeltaTimer()
 	ticker := time.NewTicker(time.Second / FPS_LIMIT)
 
 	run := true
@@ -205,14 +203,16 @@ func (g *Game) Start() {
 
 	// convert to func SetupDirections()
 	for k, v := range CARDINALS {
-		func(c rune, d goland.Action) {
+		func(c rune, d game.Action) {
 			g.HandleRune(c, func(_ termbox.Event) {
 				// lol collision
 				p := &gnet.Packet{"Taction", CARDINALS[c]}
 				g.SendPacket(p)
-				newpos := g.Player.GetPos().Add(goland.DirTable[d])
+				offset := game.DirTable[d]
+				oldposx, oldposy := g.Player.GetPos()
+				newpos := image.Pt(oldposx+offset.X, oldposy+offset.Y)
 				if g.Map.CheckCollision(nil, newpos) {
-					g.Player.SetPos(newpos)
+					g.Player.SetPos(newpos.X, newpos.Y)
 				}
 			})
 
@@ -260,7 +260,8 @@ func (g *Game) Draw() {
 	cam := NewCamera(viewbuf)
 
 	if g.Player != nil {
-		cam.SetCenter(g.Player.GetPos())
+
+		cam.SetCenter(image.Pt(g.Player.GetPos()))
 	} else {
 		cam.SetCenter(image.Pt(256/2, 256/2))
 	}
@@ -279,8 +280,8 @@ func (g *Game) Draw() {
 
 	// draw objects
 	for _, o := range g.Objects {
-		if cam.ContainsWorldPoint(o.GetPos()) && o.GetTag("visible") == true {
-			cam.Draw(o, o.GetPos())
+		if cam.ContainsWorldPoint(image.Pt(o.GetPos())) && o.GetTag("visible") == true {
+			cam.Draw(o, image.Pt(o.GetPos()))
 		}
 	}
 
@@ -293,7 +294,8 @@ func (g *Game) Draw() {
 	playerparams := &tulib.LabelParams{termbox.ColorRed, termbox.ColorBlack, tulib.AlignLeft, '.', false}
 	playerrect := tulib.Rect{1, g.Terminal.Rect.Height - 1, g.Terminal.Rect.Width, 1}
 
-	playerstr := fmt.Sprintf("User: %s Pos: %s", g.Player.GetName(), g.Player.GetPos())
+	px, py := g.Player.GetPos()
+	playerstr := fmt.Sprintf("User: %s Pos: %d,%d", g.Player.GetName(), px, py)
 
 	g.Terminal.DrawLabel(statsrect, statsparams, []byte(statsstr))
 	g.Terminal.DrawLabel(playerrect, playerparams, []byte(playerstr))
@@ -324,7 +326,7 @@ func (g *Game) HandlePacket(pk *gnet.Packet) {
 	// Raction: something moved on the server
 	// Need to update the objects (sync client w/ srv)
 	case "Raction":
-		robj := pk.Data.(goland.Object) // remote object
+		robj := pk.Data.(game.Object) // remote object
 
 		for _, o := range g.Objects {
 			if o.GetID() == robj.GetID() {
@@ -341,19 +343,19 @@ func (g *Game) HandlePacket(pk *gnet.Packet) {
 
 		// Rnewobject: new object we need to track
 	case "Rnewobject":
-		obj := pk.Data.(goland.Object)
+		obj := pk.Data.(game.Object)
 		g.Objects.Add(obj)
 
 		// Rdelobject: some object went away
 	case "Rdelobject":
-		obj := pk.Data.(goland.Object)
+		obj := pk.Data.(game.Object)
 		g.Objects.RemoveObject(obj)
 
 		// Rgetplayer: find out who we control
 	case "Rgetplayer":
-		playerid := pk.Data.(*uuid.UUID)
+		playerid := pk.Data.(game.GID)
 
-		pl := g.Objects.FindObjectByID(*playerid)
+		pl := g.Objects.FindObjectByID(playerid)
 		if pl != nil {
 			g.Player = pl
 		} else {
@@ -362,7 +364,7 @@ func (g *Game) HandlePacket(pk *gnet.Packet) {
 
 		// Rloadmap: get the map data from the server
 	case "Rloadmap":
-		gmap := pk.Data.(*goland.MapChunk)
+		gmap := pk.Data.(*game.MapChunk)
 		g.Map = gmap
 
 	default:
