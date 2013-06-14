@@ -15,7 +15,6 @@ import (
 	"log"
 	"net"
 	"path"
-	"reflect"
 )
 
 var (
@@ -151,8 +150,9 @@ func (gs *GameServer) LuaLog(fmt string, args ...interface{}) {
 
 // TODO: move these bindings into another file
 func (gs *GameServer) BindLua() {
-	luar.GoToLua(gs.Lua, nil, reflect.ValueOf(gs))
-	gs.Lua.SetGlobal("gameserver")
+	luar.Register(gs.Lua, "", luar.Map{
+		"gs": gs,
+	})
 
 	Lua_OpenObjectLib(gs.Lua)
 }
@@ -364,6 +364,17 @@ func (gs *GameServer) HandleMovementPacket(cp *ClientPacket) {
 		// check if collision with Item and item name is flag
 		px, py := o.GetPos()
 		if px == newpos.X && py == newpos.Y {
+			collfn := luar.NewLuaObjectFromName(gs.Lua, "collide")
+			_, err := collfn.Call(p, o)
+			if err != nil {
+				log.Printf("GameServer: HandleMovementPacket: Lua error: %s", err)
+				return
+			}
+
+			// tell everyone that the colliders changed
+			gs.SendPacketAll(gnet.NewPacket("Raction", o))
+			gs.SendPacketAll(gnet.NewPacket("Raction", p))
+
 			if o.GetTag("player") {
 				cp.Reply(gnet.NewPacket("Rchat", fmt.Sprintf("Ouch! You bump into %s.", o.GetName())))
 
