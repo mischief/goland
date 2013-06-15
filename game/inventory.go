@@ -13,13 +13,13 @@ const (
 )
 
 type Inventory struct {
-	Items    map[GID]*Item
+	Items    map[int]*Item
 	Capacity int
 }
 
 func NewInventory() *Inventory {
 	i := &Inventory{Capacity: DEFAULT_INVENTORY_CAP,
-		Items: make(map[GID]*Item),
+		Items: make(map[int]*Item),
 	}
 	return i
 }

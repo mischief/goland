@@ -73,7 +73,7 @@ type Game struct {
 	stats Stats
 
 	Objects game.GameObjectMap
-	Map *game.MapChunk
+	Map     *game.MapChunk
 
 	Parameters *gutil.LuaParMap
 
@@ -241,7 +241,7 @@ func (g *Game) Update(delta time.Duration) {
 
 	g.RunInputHandlers()
 
-	for _, o := range g.Objects {
+	for _, o := range g.Objects.Objs {
 		o.Update(delta)
 	}
 
@@ -279,7 +279,7 @@ func (g *Game) Draw() {
 	}
 
 	// draw objects
-	for _, o := range g.Objects {
+	for _, o := range g.Objects.Objs {
 		if cam.ContainsWorldPoint(image.Pt(o.GetPos())) && o.GetTag("visible") == true {
 			cam.Draw(o, image.Pt(o.GetPos()))
 		}
@@ -328,7 +328,7 @@ func (g *Game) HandlePacket(pk *gnet.Packet) {
 	case "Raction":
 		robj := pk.Data.(game.Object) // remote object
 
-		for _, o := range g.Objects {
+		for _, o := range g.Objects.Objs {
 			if o.GetID() == robj.GetID() {
 				o.SetPos(robj.GetPos())
 			} /*else if o.GetTag("item") {
@@ -353,13 +353,19 @@ func (g *Game) HandlePacket(pk *gnet.Packet) {
 
 		// Rgetplayer: find out who we control
 	case "Rgetplayer":
-		playerid := pk.Data.(game.GID)
+		playerid := pk.Data.(int)
 
 		pl := g.Objects.FindObjectByID(playerid)
 		if pl != nil {
 			g.Player = pl
 		} else {
 			log.Printf("Game: HandlePacket: can't find our player %s", playerid)
+
+			// just try again
+			// XXX: find a better way
+			time.AfterFunc(50*time.Millisecond, func() {
+				g.ServerWChan <- gnet.NewPacket("Tgetplayer", nil)
+			})
 		}
 
 		// Rloadmap: get the map data from the server

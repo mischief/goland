@@ -9,24 +9,23 @@ import (
 	"github.com/nsf/tulib"
 	//	uuid "github.com/nu7hatch/gouuid"
 	"image"
-	//	"log"
+	//"log"
 	"time"
 )
 
-type GID int
-
 var (
-	idchan chan GID
+	idchan chan int
 )
 
 func init() {
 	gob.Register(&GameObject{})
-	gob.Register(GID(0))
+	gob.Register(&GameObjectMap{})
 
-	idchan = make(chan GID)
+	idchan = make(chan int)
 
 	go func() {
-		var id GID
+		var id int
+		id = 0
 		for {
 			id++
 			idchan <- id
@@ -42,8 +41,8 @@ type Renderable interface {
 
 type Object interface {
 	// Setter/getter for ID
-	SetID(id GID)
-	GetID() GID
+	SetID(id int)
+	GetID() int
 
 	SetName(name string)
 	GetName() string
@@ -71,7 +70,7 @@ type Object interface {
 }
 
 type GameObject struct {
-	ID         GID             // game object id
+	ID         int             // game object id
 	Name       string          // object name
 	Pos        image.Point     // object world coordinates
 	Glyph      termbox.Cell    // character for this object
@@ -103,11 +102,11 @@ func (gob GameObject) String() string {
 		gob.Pos, gob.ID, buf.String())
 }
 
-func (gob *GameObject) SetID(id GID) {
+func (gob *GameObject) SetID(id int) {
 	gob.ID = id
 }
 
-func (gob *GameObject) GetID() GID {
+func (gob *GameObject) GetID() int {
 	return gob.ID
 }
 
@@ -168,32 +167,44 @@ func (gob *GameObject) Draw(buf *tulib.Buffer, pos image.Point) {
 }
 
 // handy interface for a collection of game objects
-type GameObjectMap map[GID]Object
+type GameObjectMap struct {
+	Objs map[int]Object
+}
 
 func NewGameObjectMap() GameObjectMap {
-	g := make(GameObjectMap)
+	g := GameObjectMap{Objs: make(map[int]Object)}
 	return g
 }
 
 func (gom GameObjectMap) Add(obj Object) {
 	// make sure we don't double insert
-	if _, ok := gom[obj.GetID()]; !ok {
-		gom[obj.GetID()] = obj
+	if _, ok := gom.Objs[obj.GetID()]; !ok {
+		gom.Objs[obj.GetID()] = obj
 	}
 }
 
 func (gom GameObjectMap) RemoveObject(obj Object) {
-	delete(gom, obj.GetID())
+	delete(gom.Objs, obj.GetID())
 }
 
-func (gom GameObjectMap) FindObjectByID(id GID) Object {
-	o, ok := gom[id]
+func (gom GameObjectMap) FindObjectByID(id int) Object {
+	o, ok := gom.Objs[id]
 
 	if !ok {
 		return nil
 	}
 
 	return o
+}
+
+// return a slice containing the objects
+// XXX: crappy hack so lua can iterate the contents
+func (gom GameObjectMap) GetSlice() []Object {
+	r := make([]Object, 1)
+	for _, o := range gom.Objs {
+		r = append(r, o)
+	}
+	return r
 }
 
 func SamePos(ob1, ob2 Object) bool {

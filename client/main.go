@@ -18,13 +18,12 @@ var (
 
 func init() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
-	Lua = lua.NewState()
+	Lua = gutil.LuaInit()
 
 	if Lua == nil {
 		log.Fatal("main: init: Can't make lua state")
 	}
 
-	Lua.OpenLibs()
 }
 
 func main() {

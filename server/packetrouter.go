@@ -3,7 +3,8 @@ package main
 
 import (
 	"github.com/trustmaster/goflow"
-	"log"
+
+//	"log"
 )
 
 type PacketRouter struct {
@@ -25,9 +26,9 @@ func NewPacketRouter(w *GameServer) *PacketRouter {
 func (pr *PacketRouter) OnIn(p *ClientPacket) {
 
 	defer func() {
-		if err := recover(); err != nil {
-			log.Println("PacketRouter: OnIn: panic:", err)
-		}
+		//if err := recover(); err != nil {
+		//	log.Println("PacketRouter: OnIn: panic:", err)
+		//}
 	}()
 
 	// log all packets

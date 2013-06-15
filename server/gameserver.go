@@ -35,7 +35,7 @@ type GameServer struct {
 
 	*game.DefaultSubject
 
-	Sessions map[game.GID]*WorldSession //client list
+	Sessions map[int]*WorldSession //client list
 
 	Objects    game.GameObjectMap
 	Map        *game.MapChunk
@@ -141,11 +141,24 @@ func (gs *GameServer) LoadMap(file string) bool {
 
 func (gs *GameServer) AddObject(obj game.Object) {
 	log.Printf("Adding object %s", obj)
+
+	// tell clients about new object
+	gs.SendPkStrAll("Rnewobject", obj)
 	gs.Objects.Add(obj)
 }
 
 func (gs *GameServer) LuaLog(fmt string, args ...interface{}) {
 	log.Printf("GameServer: Lua: "+fmt, args...)
+}
+
+func (gs *GameServer) GetScriptPath() string {
+	defaultpath := "../scripts/?.lua"
+	if scriptpath, ok := gs.Parameters.Get("scriptpath"); !ok {
+		log.Println("GameServer: 'scriptpath' not found in config. defaulting to ", defaultpath)
+		return defaultpath
+	} else {
+		return scriptpath
+	}
 }
 
 // TODO: move these bindings into another file
@@ -173,15 +186,19 @@ func (gs *GameServer) LoadAssets() bool {
 		return false
 	}
 
-	if err := gutil.LuaSafeCall(gs.Lua, 0, 0); err != nil {
-		log.Printf("GameServer: LoadAssets: LuaSafeCall: %s", gs.Lua.CheckString(-1))
-		gs.Lua.Pop(-1) // pop error
+	if err := gs.Lua.Call(0, 0); err != nil {
+		log.Printf("GameServer: LoadAssets: LuaSafeCall: %s", err)
 		return false
 	}
 
 	return true
 }
 
+func (gs *GameServer) SendPkStrAll(tag string, data interface{}) {
+	gs.SendPacketAll(gnet.NewPacket(tag, data))
+}
+
+// send a packet to all clients
 func (gs *GameServer) SendPacketAll(pk *gnet.Packet) {
 	for s := gs.DefaultSubject.Observers.Front(); s != nil; s = s.Next() {
 		s.Value.(*WorldSession).SendPacket(pk)
@@ -231,7 +248,7 @@ func (gs *GameServer) HandlePacket(cp *ClientPacket) {
 		gs.Objects.Add(newplayer)
 
 		// tell client about all other objects
-		for _, o := range gs.Objects {
+		for _, o := range gs.Objects.Objs {
 			if o.GetID() != newplayer.GetID() {
 				cp.Reply(gnet.NewPacket("Rnewobject", o))
 			}
@@ -272,7 +289,7 @@ func Action_ItemPickup(gs *GameServer, cp *ClientPacket) {
 	// we assume our cp.Data is a game.Action of type ACTION_ITEM_PICKUP
 	// act accordingly
 
-	for _, o := range gs.Objects {
+	for _, o := range gs.Objects.Objs {
 		// if same pos.. and gettable
 		if game.SamePos(o, p) && o.GetTag("gettable") {
 			// pickup item.
@@ -293,7 +310,7 @@ func Action_ItemPickup(gs *GameServer, cp *ClientPacket) {
 // TODO: this drops all items right now. make it drop individual items
 func Action_ItemDrop(gs *GameServer, cp *ClientPacket) {
 	p := cp.Client.Player
-	for _, sub := range p.GetSubObjects() {
+	for _, sub := range p.GetSubObjects().Objs {
 		log.Printf("GameServer: Action_ItemDrop: %s dropping %s", p, sub)
 
 		// remove item from player
@@ -314,12 +331,12 @@ func Action_ItemDrop(gs *GameServer, cp *ClientPacket) {
 func Action_Inventory(gs *GameServer, cp *ClientPacket) {
 	plobj := cp.Client.Player
 
-	inv := plobj.GetSubObjects()
+	inv := plobj.GetSubObjects().Objs
 
 	if len(inv) == 0 {
 		cp.Reply(gnet.NewPacket("Rchat", "You have 0 items."))
 	} else {
-		for _, sub := range cp.Client.Player.GetSubObjects() {
+		for _, sub := range inv {
 			cp.Reply(gnet.NewPacket("Rchat", fmt.Sprintf("You have a %s.", sub.GetName())))
 		}
 	}
@@ -359,27 +376,32 @@ func (gs *GameServer) HandleMovementPacket(cp *ClientPacket) {
 	}
 
 	// check gameobject collision
-	for _, o := range gs.Objects {
+	for _, o := range gs.Objects.Objs {
 
 		// check if collision with Item and item name is flag
 		px, py := o.GetPos()
 		if px == newpos.X && py == newpos.Y {
 			collfn := luar.NewLuaObjectFromName(gs.Lua, "collide")
-			_, err := collfn.Call(p, o)
+			res, err := collfn.Call(p, o)
 			if err != nil {
 				log.Printf("GameServer: HandleMovementPacket: Lua error: %s", err)
 				return
 			}
 
-			// tell everyone that the colliders changed
-			gs.SendPacketAll(gnet.NewPacket("Raction", o))
-			gs.SendPacketAll(gnet.NewPacket("Raction", p))
+			// only update position if collide returns true
+			if thebool, ok := res.(bool); !ok || !thebool {
+				log.Printf("GameServer: HandleMovementPacket: Lua collision failed")
+				valid = false
+			} else {
+				// tell everyone that the colliders changed
+				gs.SendPacketAll(gnet.NewPacket("Raction", o))
+			}
 
 			if o.GetTag("player") {
 				cp.Reply(gnet.NewPacket("Rchat", fmt.Sprintf("Ouch! You bump into %s.", o.GetName())))
 
 				// check if other player's got the goods
-				for _, sub := range o.GetSubObjects() {
+				for _, sub := range o.GetSubObjects().Objs {
 					if sub.GetTag("item") == true {
 						// swap pop'n'lock
 
@@ -399,5 +421,7 @@ func (gs *GameServer) HandleMovementPacket(cp *ClientPacket) {
 
 	if valid {
 		cp.Client.Player.SetPos(newpos.X, newpos.Y)
+		gs.SendPacketAll(gnet.NewPacket("Raction", p))
 	}
+
 }

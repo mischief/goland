@@ -109,8 +109,8 @@ func LuaParMapFromFile(L *lua.State, filename string) (*LuaParMap, error) {
 		return nil, errors.New(L.CheckString(-1))
 	}
 
-	if L.PCall(0, 1, 0) != 0 {
-		return nil, errors.New(L.CheckString(-1))
+	if err := L.Call(0, 1); err != nil {
+		return nil, err
 	}
 
 	return NewLuaParMap(L, -1)
@@ -140,6 +140,9 @@ func LuaInit() *lua.State {
 	L := luar.Init()
 	L.AtPanic(LuaAtPanic)
 
+	L.OpenLibs()
+	L.DoString("math.randomseed( os.time() )")
+
 	return L
 }
 
@@ -157,7 +160,7 @@ func LuaSafeCall(L *lua.State, nargs, nresults int) (err error) {
 
 	err = nil
 
-	L.Call(0, 0)
+	L.Call(nargs, nresults)
 
 	return
 
