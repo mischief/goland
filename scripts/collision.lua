@@ -12,6 +12,25 @@ end
 collidefns.block = function(o1,o2)
   gs.LuaLog("block collision: %s -> %s", o1.GetName(), o2.GetName())
 
+  -- if a player hits a block...
+  if o2.GetTag("player") == true then
+
+    -- find out where we should move and if something is there
+    x1, y1 = o1.GetPos()
+    x2, y2 = o2.GetPos()
+
+    if x1 ~= x2 or y1 ~= y2 then
+      newx = x2 - (x1 - x2)
+      newy = y2 - (y1 - y2)
+
+      gs.LuaLog("%s move to %f %f", o1.GetName(), newx, newy)
+      o1.SetPos(newx, newy)
+
+    end
+
+
+  end
+
   return true
 end
 
