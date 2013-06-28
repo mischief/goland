@@ -249,7 +249,7 @@ func (g *Game) Update(delta time.Duration) {
 
 func (g *Game) Draw() {
 
-	termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
+	g.Terminal.Clear()
 	// construct a current view of the 2d world and blit it
 	viewwidth := g.Terminal.Rect.Width - VIEW_START_X - VIEW_PAD_X
 	viewheight := g.Terminal.Rect.Height - VIEW_START_Y - VIEW_PAD_Y

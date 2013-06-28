@@ -14,7 +14,7 @@ func Lua_NewGameObject(L *lua.State) int {
 	name := L.CheckString(-1)
 
 	newobj := game.NewGameObject(name)
-	luar.GoToLua(L, nil, reflect.ValueOf(newobj))
+	luar.GoToLua(L, nil, reflect.ValueOf(newobj), true)
 
 	return 1
 }
@@ -32,7 +32,7 @@ func Lua_NewGlyph(L *lua.State) int {
 
 	newch := termbox.Cell{Ch: r}
 
-	luar.GoToLua(L, nil, reflect.ValueOf(newch))
+	luar.GoToLua(L, nil, reflect.ValueOf(newch), true)
 
 	return 1
 }

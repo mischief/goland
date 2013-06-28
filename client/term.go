@@ -49,8 +49,9 @@ func (t *Terminal) End() {
 	termbox.Close()
 }
 
-func (t *Terminal) Draw() {
+func (t *Terminal) Clear() {
 	termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
+	t.Buffer = tulib.TermboxBuffer()
 }
 
 func (t *Terminal) Flush() {
@@ -60,22 +61,36 @@ func (t *Terminal) Flush() {
 func (t *Terminal) RunInputHandlers() error {
 	select {
 	case ev := <-t.EventChan:
-		//log.Printf("Keypress: %s", tulib.KeyToString(ev.Key, ev.Ch, ev.Mod))
 
-		if ev.Ch != 0 { // this is a character
-			if handler, ok := t.runehandlers[ev.Ch]; ok {
-				handler(ev)
+		switch ev.Type {
+		case termbox.EventKey:
+			//log.Printf("Keypress: %s", tulib.KeyToString(ev.Key, ev.Ch, ev.Mod))
+
+			if ev.Ch != 0 { // this is a character
+				if handler, ok := t.runehandlers[ev.Ch]; ok {
+					handler(ev)
+				}
+			} else {
+				if handler, ok := t.keyhandlers[ev.Key]; ok {
+					handler(ev)
+				}
 			}
-		} else {
-			if handler, ok := t.keyhandlers[ev.Key]; ok {
-				handler(ev)
-			}
+		case termbox.EventResize:
+			// handle resize event
+			t.Resize(ev.Width, ev.Height)
+
+		case termbox.EventError:
+			return fmt.Errorf("Terminal: EventError: %s", ev.Err)
 		}
 
 	default:
 	}
 
 	return nil
+}
+
+// Resize the terminal
+func (t *Terminal) Resize(neww, newh int) {
 }
 
 func (t *Terminal) HandleRune(r rune, h KeyHandler) {
