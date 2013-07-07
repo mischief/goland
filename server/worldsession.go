@@ -79,6 +79,12 @@ func (ws *WorldSession) ReceiveProc() {
 // send packet to this client
 func (ws *WorldSession) SendPacket(pk *gnet.Packet) {
 	log.Printf("WorldSession: SendPacket: %s %s", ws.Con.RemoteAddr(), pk)
+
+	defer func() {
+		if err := recover(); err != nil {
+			log.Printf("WorldSession: SendPacket: error: %s", err)
+		}
+	}()
 	ws.ClientWChan <- pk
 }
 

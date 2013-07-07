@@ -20,14 +20,12 @@ collidefns.block = function(o1,o2)
     x2, y2 = o2.GetPos()
 
     if x1 ~= x2 or y1 ~= y2 then
-      newx = x2 - (x1 - x2)
-      newy = y2 - (y1 - y2)
+      newx = x1 - (x2 - x1)
+      newy = y1 - (y2 - y1)
 
       gs.LuaLog("%s move to %f %f", o1.GetName(), newx, newy)
       o1.SetPos(newx, newy)
-
     end
-
 
   end
 
@@ -36,30 +34,14 @@ end
 
 -- called when a player hits something
 collidefns.player = function(o1,o2)
-  -- players can move blocks
-  --
-  if o2.GetName() == 'block' then
-    x1,y1 = o1.GetPos()
-    gs.LuaLog("o1 %.0f %.0f", x1, y1)
-    x2,y2 = o2.GetPos()
-    gs.LuaLog("o2 %.0f %.0f", x2, y2)
-
-    if x1 ~= x2 or y1 ~= y2 then
-      newx = x2-(x1-x2)
-      newy = y2-(y1-y2)
-      gs.LuaLog("%s move to %f %f", o2.GetName(), newx, newy)
-      o2.SetPos(newx, newy)
-    end
-  elseif o2.GetName() == 'flag' then
-    gs.LuaLog("%s found a flag!", o1.GetName())
-  end
-
   return true
 end
 
 -- find the appropriate collision handler
 local findcollisionfn = function(o1) 
   fn = collidefns[o1.GetName()]
+
+  -- if collision function isn't available by name of object, it might be a player
   if not fn and o1.GetTag("player") == true then
     fn = collidefns['player']
   end

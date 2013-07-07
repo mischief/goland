@@ -68,11 +68,13 @@ type Game struct {
 
 	Terminal
 	*TermLog
+	chatbox *ChatBuffer
+
 	CloseChan chan bool
 
 	stats Stats
 
-	Objects game.GameObjectMap
+	Objects *game.GameObjectMap
 	Map     *game.MapChunk
 
 	Parameters *gutil.LuaParMap
@@ -91,6 +93,8 @@ func NewGame(params *gutil.LuaParMap) *Game {
 	g.CloseChan = make(chan bool, 1)
 
 	g.Player = game.NewGameObject("")
+
+	g.chatbox = NewChatBuffer(&g, &g.Terminal)
 
 	//g.Objects = append(g.Objects, g.Player.GameObject)
 
@@ -201,6 +205,9 @@ func (g *Game) Start() {
 	// ESC to quit
 	g.HandleKey(termbox.KeyEsc, func(ev termbox.Event) { g.CloseChan <- false })
 
+	// Enter to chat
+	g.HandleKey(termbox.KeyEnter, func(ev termbox.Event) { g.SetAltChan(g.chatbox.Input) })
+
 	// convert to func SetupDirections()
 	for k, v := range CARDINALS {
 		func(c rune, d game.Action) {
@@ -291,14 +298,19 @@ func (g *Game) Draw() {
 
 	statsstr := fmt.Sprintf("Terminal: %s TERM %s", g.Terminal.Size(), g.stats)
 
-	playerparams := &tulib.LabelParams{termbox.ColorRed, termbox.ColorBlack, tulib.AlignLeft, '.', false}
-	playerrect := tulib.Rect{1, g.Terminal.Rect.Height - 1, g.Terminal.Rect.Width, 1}
+	playerparams := &tulib.LabelParams{termbox.ColorBlue, termbox.ColorBlack, tulib.AlignLeft, '.', false}
+	playerrect := tulib.Rect{1, g.Terminal.Rect.Height - 1, g.Terminal.Rect.Width / 2, 1}
 
 	px, py := g.Player.GetPos()
 	playerstr := fmt.Sprintf("User: %s Pos: %d,%d", g.Player.GetName(), px, py)
 
+	// chat box
+	chatparams := &tulib.LabelParams{termbox.ColorBlue, termbox.ColorBlack, tulib.AlignLeft, '.', false}
+	chatrect := tulib.Rect{g.Terminal.Rect.Width / 2, g.Terminal.Rect.Height - 1, g.Terminal.Rect.Width, 1}
+
 	g.Terminal.DrawLabel(statsrect, statsparams, []byte(statsstr))
 	g.Terminal.DrawLabel(playerrect, playerparams, []byte(playerstr))
+	g.Terminal.DrawLabel(chatrect, chatparams, []byte(fmt.Sprintf("Chat: %s", g.chatbox.String())))
 
 	g.TermLog.Draw(&g.Terminal.Buffer, image.Pt(1, g.Terminal.Rect.Height-6))
 

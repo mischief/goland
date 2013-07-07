@@ -31,20 +31,27 @@ collision.fns.scorepoint = function(o1, o2)
 
   gs.LuaLog("%s has stepped on a %s", o2.GetName(), o1.GetName())
 
-  subobjs = o2.SubObjects.Objs
---  print(type(subobjs))
+  subobjs = o2.SubObjects.GetSlice()
+
+  print(type(subobjs))
   slice = subobjs
+  --gs.LuaLog("2 %s %f", type(slice), #slice)
   --slice = subobjs.GetSlice()
---  print(type(slice), #slice)
---  for k,v in pairs(getmetatable(slice)) do
---    print(k,v)
---  end
---  obj = slice[1]
---  print(type(obj))
+  print(type(slice), #slice)
+  for k,v in pairs(getmetatable(slice)) do
+    print(k,v)
+  end
+
+  -- does not work :(
+  --for k,v in ipairs(slice) do
+  --  print(k,v)
+  --end
+  --obj = slice[0]
+  --print(type(obj))
   --slice = assert(slice:Slice(0, #slice)) -- XXX why does this work????
 --  print('slice has ', #slice)
 
-  for i=0, #slice do
+  for i=2, #slice do
     obj = slice[i]
 --    print(type(obj))
 

@@ -138,7 +138,7 @@ func LuaAtPanic(L *lua.State) int {
 // TODO: better error handling
 func LuaInit() *lua.State {
 	L := luar.Init()
-	L.AtPanic(LuaAtPanic)
+	//L.AtPanic(LuaAtPanic)
 
 	L.OpenLibs()
 	L.DoString("math.randomseed( os.time() )")

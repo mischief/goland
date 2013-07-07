@@ -1,6 +1,9 @@
 package game
 
-import "container/list"
+import (
+	"container/list"
+	"sync"
+)
 
 type Subject interface {
 	Attach(obs Observer)
@@ -13,23 +16,28 @@ type Observer interface {
 }
 
 type DefaultSubject struct {
+	sync.Mutex
 	Observers *list.List
 }
 
 func NewDefaultSubject() *DefaultSubject {
-	return &DefaultSubject{list.New()}
+	return &DefaultSubject{Observers: list.New()}
 }
 
 func (sub *DefaultSubject) Attach(obs Observer) {
+	sub.Lock()
 	sub.Observers.PushBack(obs)
+	sub.Unlock()
 }
 
 func (sub *DefaultSubject) Detach(obs Observer) {
+	sub.Lock()
 	for o := sub.Observers.Front(); o != nil; o = o.Next() {
 		if o.Value == obs {
 			sub.Observers.Remove(o)
 		}
 	}
+	sub.Unlock()
 }
 
 func (sub *DefaultSubject) Notify() {

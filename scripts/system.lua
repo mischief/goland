@@ -6,8 +6,6 @@
 -- use . not : for calling go userdata
 --gameserver:ANYTHING()
 
-package.path = package.path .. ";" .. gs.GetScriptPath() --";../?.lua"
-
 -- item handling stuff?
 items = require('items')
 coll = require('collision')
@@ -20,5 +18,7 @@ map = require('map1')
 map.load()
 
 -- get a debug shell after loading
-debug.debug()
+if gs.Debug() == true then
+  debug.debug()
+end
 

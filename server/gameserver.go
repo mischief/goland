@@ -14,7 +14,6 @@ import (
 	"image"
 	"log"
 	"net"
-	"path"
 )
 
 var (
@@ -37,14 +36,14 @@ type GameServer struct {
 
 	Sessions map[int]*WorldSession //client list
 
-	Objects    game.GameObjectMap
+	Objects    *game.GameObjectMap
 	Map        *game.MapChunk
 	Parameters *gutil.LuaParMap
 
 	Lua *lua.State
 }
 
-func NewGameServer(params *gutil.LuaParMap) (*GameServer, error) {
+func NewGameServer(params *gutil.LuaParMap, ls *lua.State) (*GameServer, error) {
 
 	// flow network setup
 	gs := new(GameServer)
@@ -72,9 +71,25 @@ func NewGameServer(params *gutil.LuaParMap) (*GameServer, error) {
 	gs.Objects = game.NewGameObjectMap()
 
 	// lua state
-	gs.Lua = gutil.LuaInit()
+	gs.Lua = ls
 
 	return gs, nil
+}
+
+func (gs *GameServer) Debug() bool {
+	if debug, ok := gs.Parameters.Get("debug"); !ok {
+		log.Println("GameServer: 'debug' not found in config. defaulting to false")
+		return false
+	} else {
+		switch debug {
+		case "true":
+			return true
+		case "false":
+			return false
+		default:
+			return false
+		}
+	}
 }
 
 func (gs *GameServer) Run() {
@@ -167,6 +182,11 @@ func (gs *GameServer) BindLua() {
 		"gs": gs,
 	})
 
+	// add our script path here..
+	pkgpathscript := `package.path = package.path .. ";" .. gs.GetScriptPath() --";../?.lua"`
+	if err := gs.Lua.DoString(pkgpathscript); err != nil {
+	}
+
 	Lua_OpenObjectLib(gs.Lua)
 }
 
@@ -174,20 +194,8 @@ func (gs *GameServer) BindLua() {
 func (gs *GameServer) LoadAssets() bool {
 	gs.BindLua()
 
-	scriptdir, ok := gs.Parameters.Get("scriptdir")
-	if !ok {
-		log.Printf("GameServer: LoadAssets: No scriptdir specified")
-		return false
-	}
-
-	if gs.Lua.LoadFile(path.Join(scriptdir, "system.lua")) != 0 {
-		log.Printf("GameServer: LoadAssets: LoadFile: %s", gs.Lua.CheckString(-1))
-		gs.Lua.Pop(-1) // pop error
-		return false
-	}
-
-	if err := gs.Lua.Call(0, 0); err != nil {
-		log.Printf("GameServer: LoadAssets: LuaSafeCall: %s", err)
+	if err := gs.Lua.DoString("require('system')"); err != nil {
+		log.Printf("GameServer: LoadAssets: %s", err)
 		return false
 	}
 
@@ -262,6 +270,7 @@ func (gs *GameServer) HandlePacket(cp *ClientPacket) {
 
 	case "Tdisconnect":
 		// notify clients this player went away
+		Action_ItemDrop(gs, cp)
 		gs.Objects.RemoveObject(cp.Client.Player)
 		gs.Detach(cp.Client)
 		gs.SendPacketAll(gnet.NewPacket("Rdelobject", cp.Client.Player))
@@ -421,7 +430,7 @@ func (gs *GameServer) HandleMovementPacket(cp *ClientPacket) {
 
 	if valid {
 		cp.Client.Player.SetPos(newpos.X, newpos.Y)
-		gs.SendPacketAll(gnet.NewPacket("Raction", p))
+		//gs.SendPacketAll(gnet.NewPacket("Raction", p))
 	}
 
 }

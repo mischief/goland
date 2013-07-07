@@ -78,7 +78,7 @@ func main() {
 		defer pprof.StopCPUProfile()
 	}
 
-	gs, err := NewGameServer(ParMap)
+	gs, err := NewGameServer(ParMap, Lua)
 	if err != nil {
 		log.Println(err)
 	} else {

@@ -48,7 +48,7 @@ var (
 	}
 
 	GLYPH_EMPTY  = termbox.Cell{Ch: ' '}
-	GLYPH_WALL   = termbox.Cell{Ch: '#', Fg: termbox.ColorBlack, Bg: termbox.ColorWhite}
+	GLYPH_WALL   = termbox.Cell{Ch: '#', Fg: termbox.ColorDefault, Bg: termbox.ColorBlack | termbox.AttrUnderline | termbox.AttrBold}
 	GLYPH_GROUND = termbox.Cell{Ch: '.', Fg: termbox.ColorGreen}
 	GLYPH_FLAG   = termbox.Cell{Ch: '%', Fg: termbox.ColorCyan}
 	GLYPH_ITEM   = termbox.Cell{Ch: '?', Fg: termbox.ColorCyan}

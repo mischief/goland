@@ -5,7 +5,7 @@ import (
 	"github.com/nsf/termbox-go"
 	"github.com/nsf/tulib"
 	"image"
-	//"log"
+	"log"
 )
 
 type KeyHandler func(ev termbox.Event)
@@ -13,6 +13,7 @@ type KeyHandler func(ev termbox.Event)
 type Terminal struct {
 	tulib.Buffer
 	EventChan chan termbox.Event
+	AltChan   chan termbox.Event
 
 	runehandlers map[rune]KeyHandler
 	keyhandlers  map[termbox.Key]KeyHandler
@@ -58,21 +59,33 @@ func (t *Terminal) Flush() {
 	termbox.Flush()
 }
 
+// Provides an alternate channel to send terminal keys to.
+func (t *Terminal) SetAltChan(alt chan termbox.Event) {
+	log.Printf("Changing event channels")
+	t.AltChan = alt
+}
+
 func (t *Terminal) RunInputHandlers() error {
 	select {
 	case ev := <-t.EventChan:
 
 		switch ev.Type {
 		case termbox.EventKey:
-			//log.Printf("Keypress: %s", tulib.KeyToString(ev.Key, ev.Ch, ev.Mod))
+			log.Printf("Keypress: %s", tulib.KeyToString(ev.Key, ev.Ch, ev.Mod))
 
-			if ev.Ch != 0 { // this is a character
-				if handler, ok := t.runehandlers[ev.Ch]; ok {
-					handler(ev)
-				}
+			if t.AltChan != nil {
+				log.Printf("Diverting keypress")
+				t.AltChan <- ev
 			} else {
-				if handler, ok := t.keyhandlers[ev.Key]; ok {
-					handler(ev)
+
+				if ev.Ch != 0 { // this is a character
+					if handler, ok := t.runehandlers[ev.Ch]; ok {
+						handler(ev)
+					}
+				} else {
+					if handler, ok := t.keyhandlers[ev.Key]; ok {
+						handler(ev)
+					}
 				}
 			}
 		case termbox.EventResize:

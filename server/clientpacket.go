@@ -17,5 +17,12 @@ func (cp ClientPacket) String() string {
 
 func (cp *ClientPacket) Reply(pk *gnet.Packet) {
 	log.Printf("ClientPacket: Reply: %s -> %s %s", cp.Packet, cp.Client.Con.RemoteAddr(), pk)
+
+	defer func() {
+		if err := recover(); err != nil {
+			log.Printf("ClientPacket: Reply: error: %s", err)
+		}
+	}()
+
 	cp.Client.ClientWChan <- pk
 }

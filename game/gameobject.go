@@ -59,7 +59,7 @@ type Object interface {
 	SetTag(tag string, val bool) bool // returns old value
 	GetTag(tag string) bool
 
-	GetSubObjects() GameObjectMap
+	GetSubObjects() *GameObjectMap
 	AddSubObject(obj Object)
 	RemoveSubObject(obj Object) Object
 
@@ -75,7 +75,7 @@ type GameObject struct {
 	Pos        image.Point     // object world coordinates
 	Glyph      termbox.Cell    // character for this object
 	Tags       map[string]bool // object tags
-	SubObjects GameObjectMap   // objects associated with this one
+	SubObjects *GameObjectMap   // objects associated with this one
 }
 
 func NewGameObject(name string) Object {
@@ -146,7 +146,7 @@ func (gob *GameObject) GetTag(tag string) bool {
 	return gob.Tags[tag]
 }
 
-func (gob *GameObject) GetSubObjects() GameObjectMap {
+func (gob *GameObject) GetSubObjects() *GameObjectMap {
 	return gob.SubObjects
 }
 
@@ -171,23 +171,23 @@ type GameObjectMap struct {
 	Objs map[int]Object
 }
 
-func NewGameObjectMap() GameObjectMap {
+func NewGameObjectMap() *GameObjectMap {
 	g := GameObjectMap{Objs: make(map[int]Object)}
-	return g
+	return &g
 }
 
-func (gom GameObjectMap) Add(obj Object) {
+func (gom *GameObjectMap) Add(obj Object) {
 	// make sure we don't double insert
 	if _, ok := gom.Objs[obj.GetID()]; !ok {
 		gom.Objs[obj.GetID()] = obj
 	}
 }
 
-func (gom GameObjectMap) RemoveObject(obj Object) {
+func (gom *GameObjectMap) RemoveObject(obj Object) {
 	delete(gom.Objs, obj.GetID())
 }
 
-func (gom GameObjectMap) FindObjectByID(id int) Object {
+func (gom *GameObjectMap) FindObjectByID(id int) Object {
 	o, ok := gom.Objs[id]
 
 	if !ok {
@@ -199,7 +199,7 @@ func (gom GameObjectMap) FindObjectByID(id int) Object {
 
 // return a slice containing the objects
 // XXX: crappy hack so lua can iterate the contents
-func (gom GameObjectMap) GetSlice() []Object {
+func (gom *GameObjectMap) GetSlice() []Object {
 	r := make([]Object, 1)
 	for _, o := range gom.Objs {
 		r = append(r, o)

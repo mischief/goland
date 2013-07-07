@@ -1,7 +1,7 @@
 config = {
   -- map file
   map         = "map",
-  scriptdir   = "../scripts",
+  scriptpath  = "../scripts/?.lua",
 
   -- listen dialstring
   listener    = "127.0.0.1:61507",
@@ -9,7 +9,7 @@ config = {
   -- logging & debugging
   logfile     = "server.log",
 
-  debug       = "true",
+  debug       = "false",
   --cpuprofile  = "server.profile",
 }
 
