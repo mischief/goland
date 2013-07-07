@@ -79,3 +79,8 @@ maybe this should be called a 'textshot'
  [chat] anonymous295: owned noob! 
  User: anonymous295 Pos: 128,129        Chat: woot       
 ```
+
+real screenshot
+
+![goland screenshot](goland.png "goland screenshot")
+
