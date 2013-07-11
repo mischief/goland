@@ -1,29 +1,36 @@
 package main
 
 import (
+	"github.com/errnoh/termbox/panel"
 	goland "github.com/mischief/goland/game"
+	"github.com/nsf/termbox-go"
 	"github.com/nsf/tulib"
 	"image"
 )
 
 const (
 	VIEW_START_X = 1
-	VIEW_START_Y = 1
+	VIEW_START_Y = 3
 	VIEW_PAD_X   = 1
 	VIEW_PAD_Y   = 6
 )
 
 type Camera struct {
+	*panel.Buffered
+
 	Render tulib.Buffer    // the memory buffer this camera draws to
 	Pos    image.Point     // center of the camera
 	Rect   image.Rectangle // camera's bounding box
 }
 
 func NewCamera(render tulib.Buffer) Camera {
+	r := image.Rect(0, 0, render.Rect.Width, render.Rect.Height)
+
 	c := Camera{
-		Render: render,
-		Pos:    image.ZP,
-		Rect:   image.Rect(0, 0, render.Rect.Width, render.Rect.Height),
+		Buffered: panel.NewBuffered(r, termbox.Cell{'s', 0, 0}),
+		Render:   render,
+		Pos:      image.ZP,
+		Rect:     r,
 	}
 
 	return c

@@ -75,7 +75,7 @@ type GameObject struct {
 	Pos        image.Point     // object world coordinates
 	Glyph      termbox.Cell    // character for this object
 	Tags       map[string]bool // object tags
-	SubObjects *GameObjectMap   // objects associated with this one
+	SubObjects *GameObjectMap  // objects associated with this one
 }
 
 func NewGameObject(name string) Object {

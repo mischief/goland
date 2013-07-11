@@ -1,7 +1,7 @@
 package main
 
 import (
-	"fmt"
+	"github.com/errnoh/termbox/panel"
 	"github.com/mischief/gochanio"
 	"github.com/mischief/goland/game"
 	"github.com/mischief/goland/game/gnet"
@@ -12,13 +12,11 @@ import (
 	"io"
 	"log"
 	"net"
-	"runtime"
 	"time"
 )
 
 const (
-	FPS_SAMPLES = 64
-	FPS_LIMIT   = 23
+	FPS_LIMIT = 23
 )
 
 var (
@@ -37,42 +35,17 @@ var (
 	}
 )
 
-type Stats struct {
-	Samples  [64]float64
-	Current  int
-	MemStats runtime.MemStats
-
-	fps float64
-}
-
-func (s Stats) String() string {
-	return fmt.Sprintf("%5.2f FPS %5.2f MB %d GC %d GR", s.fps, float64(s.MemStats.HeapAlloc)/1000000.0, s.MemStats.NumGC, runtime.NumGoroutine())
-}
-
-func (s *Stats) Update(delta time.Duration) {
-
-	runtime.ReadMemStats(&s.MemStats)
-
-	s.Samples[s.Current%FPS_SAMPLES] = 1.0 / delta.Seconds()
-	s.Current++
-
-	for i := 0; i < FPS_SAMPLES; i++ {
-		s.fps += s.Samples[i]
-	}
-
-	s.fps /= FPS_SAMPLES
-}
-
 type Game struct {
 	Player game.Object
 
 	Terminal
-	*TermLog
-	chatbox *ChatBuffer
+	logpanel  *LogPanel
+	chatpanel *ChatPanel
+
+	panels    map[string]panel.Panel
+	mainpanel *panel.Buffered
 
 	CloseChan chan bool
-
-	stats Stats
 
 	Objects *game.GameObjectMap
 	Map     *game.MapChunk
@@ -94,7 +67,18 @@ func NewGame(params *gutil.LuaParMap) *Game {
 
 	g.Player = game.NewGameObject("")
 
-	g.chatbox = NewChatBuffer(&g, &g.Terminal)
+	g.mainpanel = panel.MainScreen()
+	g.panels = make(map[string]panel.Panel)
+
+	g.panels["stats"] = NewStatsPanel()
+	g.panels["player"] = NewPlayerPanel(&g)
+	g.panels["log"] = NewLogPanel()
+	g.panels["chat"] = NewChatPanel(&g, &g.Terminal)
+
+	g.logpanel = g.panels["log"].(*LogPanel)
+	g.chatpanel = g.panels["chat"].(*ChatPanel)
+
+	//g.chatbox = NewChatBuffer(&g, &g.Terminal)
 
 	//g.Objects = append(g.Objects, g.Player.GameObject)
 
@@ -127,6 +111,13 @@ func (g *Game) Run() {
 
 			g.Update(delta)
 			g.Draw()
+
+			//panel.DrawAll(g.panels...)
+			for _, p := range g.panels {
+				if v, ok := p.(panel.Drawer); ok {
+					v.Draw()
+				}
+			}
 
 			g.Flush()
 
@@ -193,20 +184,20 @@ func (g *Game) Start() {
 			g.HandlePacket(p)
 		}
 		log.Println("Game: Read: Disconnected from server!")
-		io.WriteString(g.TermLog, "Disconnected from server!")
+		io.WriteString(g.logpanel, "Disconnected from server!")
 	}(g.ServerRChan)
 
 	// terminal/keyhandling setup
 	g.Terminal.Start()
 
 	// chat dialog
-	g.TermLog = NewTermLog(image.Pt(g.Terminal.Rect.Width-VIEW_START_X-VIEW_PAD_X, 5))
+	//g.TermLog = NewTermLog(image.Pt(g.Terminal.Rect.Width-VIEW_START_X-VIEW_PAD_X, 5))
 
 	// ESC to quit
 	g.HandleKey(termbox.KeyEsc, func(ev termbox.Event) { g.CloseChan <- false })
 
 	// Enter to chat
-	g.HandleKey(termbox.KeyEnter, func(ev termbox.Event) { g.SetAltChan(g.chatbox.Input) })
+	g.HandleKey(termbox.KeyEnter, func(ev termbox.Event) { g.SetAltChan(g.chatpanel.Input) })
 
 	// convert to func SetupDirections()
 	for k, v := range CARDINALS {
@@ -244,7 +235,16 @@ func (g *Game) End() {
 
 func (g *Game) Update(delta time.Duration) {
 	// collect stats
-	g.stats.Update(delta)
+
+	for _, p := range g.panels {
+		if v, ok := p.(gutil.Updater); ok {
+			v.Update(delta)
+		}
+
+		if v, ok := p.(InputHandler); ok {
+			v.HandleInput(termbox.Event{Type: termbox.EventResize})
+		}
+	}
 
 	g.RunInputHandlers()
 
@@ -257,6 +257,7 @@ func (g *Game) Update(delta time.Duration) {
 func (g *Game) Draw() {
 
 	g.Terminal.Clear()
+	g.mainpanel.Clear()
 	// construct a current view of the 2d world and blit it
 	viewwidth := g.Terminal.Rect.Width - VIEW_START_X - VIEW_PAD_X
 	viewheight := g.Terminal.Rect.Height - VIEW_START_Y - VIEW_PAD_Y
@@ -293,26 +294,26 @@ func (g *Game) Draw() {
 	}
 
 	// draw labels
-	statsparams := &tulib.LabelParams{termbox.ColorRed, termbox.ColorBlack, tulib.AlignLeft, '.', false}
-	statsrect := tulib.Rect{1, 0, 60, 1}
+	//statsparams := &tulib.LabelParams{termbox.ColorRed, termbox.ColorBlack, tulib.AlignLeft, '.', false}
+	//statsrect := tulib.Rect{1, 0, 60, 1}
 
-	statsstr := fmt.Sprintf("Terminal: %s TERM %s", g.Terminal.Size(), g.stats)
+	//statsstr := fmt.Sprintf("Terminal: %s TERM %s", g.Terminal.Size(), g.stats)
 
-	playerparams := &tulib.LabelParams{termbox.ColorBlue, termbox.ColorBlack, tulib.AlignLeft, '.', false}
-	playerrect := tulib.Rect{1, g.Terminal.Rect.Height - 1, g.Terminal.Rect.Width / 2, 1}
+	//playerparams := &tulib.LabelParams{termbox.ColorBlue, termbox.ColorBlack, tulib.AlignLeft, '.', false}
+	//playerrect := tulib.Rect{1, g.Terminal.Rect.Height - 1, g.Terminal.Rect.Width / 2, 1}
 
-	px, py := g.Player.GetPos()
-	playerstr := fmt.Sprintf("User: %s Pos: %d,%d", g.Player.GetName(), px, py)
+	//px, py := g.Player.GetPos()
+	//playerstr := fmt.Sprintf("User: %s Pos: %d,%d", g.Player.GetName(), px, py)
 
 	// chat box
-	chatparams := &tulib.LabelParams{termbox.ColorBlue, termbox.ColorBlack, tulib.AlignLeft, '.', false}
-	chatrect := tulib.Rect{g.Terminal.Rect.Width / 2, g.Terminal.Rect.Height - 1, g.Terminal.Rect.Width, 1}
+	//chatparams := &tulib.LabelParams{termbox.ColorBlue, termbox.ColorBlack, tulib.AlignLeft, '.', false}
+	//chatrect := tulib.Rect{g.Terminal.Rect.Width / 2, g.Terminal.Rect.Height - 1, g.Terminal.Rect.Width, 1}
 
-	g.Terminal.DrawLabel(statsrect, statsparams, []byte(statsstr))
-	g.Terminal.DrawLabel(playerrect, playerparams, []byte(playerstr))
-	g.Terminal.DrawLabel(chatrect, chatparams, []byte(fmt.Sprintf("Chat: %s", g.chatbox.String())))
+	//	g.Terminal.DrawLabel(statsrect, statsparams, []byte(statsstr))
+	//g.Terminal.DrawLabel(playerrect, playerparams, []byte(playerstr))
+	//g.Terminal.DrawLabel(chatrect, chatparams, []byte(fmt.Sprintf("Chat: %s", g.chatbox.String())))
 
-	g.TermLog.Draw(&g.Terminal.Buffer, image.Pt(1, g.Terminal.Rect.Height-6))
+	//g.TermLog.Draw(&g.Terminal.Buffer, image.Pt(1, g.Terminal.Rect.Height-6))
 
 	// blit
 	g.Terminal.Blit(viewrect, 0, 0, &viewbuf)
@@ -333,7 +334,7 @@ func (g *Game) HandlePacket(pk *gnet.Packet) {
 	// Rchat: we got a text message
 	case "Rchat":
 		chatline := pk.Data.(string)
-		io.WriteString(g.TermLog, chatline)
+		io.WriteString(g.logpanel, chatline)
 
 	// Raction: something moved on the server
 	// Need to update the objects (sync client w/ srv)
