@@ -7,7 +7,6 @@ import (
 	"github.com/mischief/goland/game/gnet"
 	"github.com/mischief/goland/game/gutil"
 	"github.com/nsf/termbox-go"
-	"github.com/nsf/tulib"
 	"image"
 	"io"
 	"log"
@@ -71,8 +70,9 @@ func NewGame(params *gutil.LuaParMap) *Game {
 	g.panels = make(map[string]panel.Panel)
 
 	g.panels["stats"] = NewStatsPanel()
-	g.panels["player"] = NewPlayerPanel(&g)
+	g.panels["view"] = NewViewPanel(&g)
 	g.panels["log"] = NewLogPanel()
+	g.panels["player"] = NewPlayerPanel(&g)
 	g.panels["chat"] = NewChatPanel(&g, &g.Terminal)
 
 	g.logpanel = g.panels["log"].(*LogPanel)
@@ -111,13 +111,6 @@ func (g *Game) Run() {
 
 			g.Update(delta)
 			g.Draw()
-
-			//panel.DrawAll(g.panels...)
-			for _, p := range g.panels {
-				if v, ok := p.(panel.Drawer); ok {
-					v.Draw()
-				}
-			}
 
 			g.Flush()
 
@@ -237,12 +230,12 @@ func (g *Game) Update(delta time.Duration) {
 	// collect stats
 
 	for _, p := range g.panels {
-		if v, ok := p.(gutil.Updater); ok {
-			v.Update(delta)
-		}
-
 		if v, ok := p.(InputHandler); ok {
 			v.HandleInput(termbox.Event{Type: termbox.EventResize})
+		}
+
+		if v, ok := p.(gutil.Updater); ok {
+			v.Update(delta)
 		}
 	}
 
@@ -258,65 +251,13 @@ func (g *Game) Draw() {
 
 	g.Terminal.Clear()
 	g.mainpanel.Clear()
-	// construct a current view of the 2d world and blit it
-	viewwidth := g.Terminal.Rect.Width - VIEW_START_X - VIEW_PAD_X
-	viewheight := g.Terminal.Rect.Height - VIEW_START_Y - VIEW_PAD_Y
-	viewrect := tulib.Rect{VIEW_START_X, VIEW_START_Y, viewwidth, viewheight}
-	viewbuf := tulib.NewBuffer(viewwidth, viewheight)
-	viewbuf.Fill(viewrect, termbox.Cell{Ch: ' ', Fg: termbox.ColorDefault, Bg: termbox.ColorDefault})
 
-	cam := NewCamera(viewbuf)
-
-	if g.Player != nil {
-
-		cam.SetCenter(image.Pt(g.Player.GetPos()))
-	} else {
-		cam.SetCenter(image.Pt(256/2, 256/2))
-	}
-
-	// draw terrain
-	if g.Map != nil {
-		for x, row := range g.Map.Locations {
-			for y, terr := range row {
-				pos := image.Pt(x, y)
-				if cam.ContainsWorldPoint(pos) {
-					cam.Draw(terr, pos)
-				}
-			}
+	// draw panels
+	for _, p := range g.panels {
+		if v, ok := p.(panel.Drawer); ok {
+			v.Draw()
 		}
 	}
-
-	// draw objects
-	for _, o := range g.Objects.Objs {
-		if cam.ContainsWorldPoint(image.Pt(o.GetPos())) && o.GetTag("visible") == true {
-			cam.Draw(o, image.Pt(o.GetPos()))
-		}
-	}
-
-	// draw labels
-	//statsparams := &tulib.LabelParams{termbox.ColorRed, termbox.ColorBlack, tulib.AlignLeft, '.', false}
-	//statsrect := tulib.Rect{1, 0, 60, 1}
-
-	//statsstr := fmt.Sprintf("Terminal: %s TERM %s", g.Terminal.Size(), g.stats)
-
-	//playerparams := &tulib.LabelParams{termbox.ColorBlue, termbox.ColorBlack, tulib.AlignLeft, '.', false}
-	//playerrect := tulib.Rect{1, g.Terminal.Rect.Height - 1, g.Terminal.Rect.Width / 2, 1}
-
-	//px, py := g.Player.GetPos()
-	//playerstr := fmt.Sprintf("User: %s Pos: %d,%d", g.Player.GetName(), px, py)
-
-	// chat box
-	//chatparams := &tulib.LabelParams{termbox.ColorBlue, termbox.ColorBlack, tulib.AlignLeft, '.', false}
-	//chatrect := tulib.Rect{g.Terminal.Rect.Width / 2, g.Terminal.Rect.Height - 1, g.Terminal.Rect.Width, 1}
-
-	//	g.Terminal.DrawLabel(statsrect, statsparams, []byte(statsstr))
-	//g.Terminal.DrawLabel(playerrect, playerparams, []byte(playerstr))
-	//g.Terminal.DrawLabel(chatrect, chatparams, []byte(fmt.Sprintf("Chat: %s", g.chatbox.String())))
-
-	//g.TermLog.Draw(&g.Terminal.Buffer, image.Pt(1, g.Terminal.Rect.Height-6))
-
-	// blit
-	g.Terminal.Blit(viewrect, 0, 0, &viewbuf)
 
 }
 

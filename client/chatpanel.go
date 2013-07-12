@@ -6,6 +6,7 @@ import (
 	"github.com/mischief/goland/game/gnet"
 	"github.com/nsf/termbox-go"
 	"image"
+	"sync"
 	"unicode/utf8"
 )
 
@@ -13,6 +14,7 @@ import (
 type ChatPanel struct {
 	*panel.Buffered // Panel
 	bytes.Buffer    // Buffer for keyboard input
+	m               sync.Mutex
 	Input           chan termbox.Event
 	g               *Game
 	term            *Terminal
@@ -27,6 +29,7 @@ func NewChatPanel(g *Game, t *Terminal) *ChatPanel {
 }
 
 func (c *ChatPanel) HandleInput(ev termbox.Event) {
+	c.m.Lock()
 	switch ev.Type {
 	case termbox.EventKey:
 		if ev.Ch != 0 {
@@ -71,11 +74,15 @@ func (c *ChatPanel) HandleInput(ev termbox.Event) {
 		c.Buffered = panel.NewBuffered(r, termbox.Cell{'s', termbox.ColorGreen, 0})
 
 	}
+
+	c.m.Unlock()
 }
 
 func (c *ChatPanel) Draw() {
 	c.Clear()
+	c.m.Lock()
 	str := "Chat: " + c.Buffer.String()
+	c.m.Unlock()
 	for i, r := range str {
 		c.SetCell(i, 0, r, termbox.ColorBlue, termbox.ColorDefault)
 	}

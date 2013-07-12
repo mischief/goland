@@ -57,7 +57,9 @@ func (s *StatsPanel) HandleInput(ev termbox.Event) {
 }
 
 func (s *StatsPanel) Draw() {
-	for i, r := range s.String() {
+	w, h := termbox.Size()
+	str := fmt.Sprintf("Terminal: %d,%d SZ %s", w, h, s)
+	for i, r := range str {
 		s.SetCell(i, 0, r, termbox.ColorBlue, termbox.ColorDefault)
 	}
 	//io.WriteString(s, s.String() + fmt.Sprintf(" %s", s.Bounds()))
