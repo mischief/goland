@@ -11,6 +11,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"reflect"
 	"sync"
 	"time"
 )
@@ -51,7 +52,7 @@ type Game struct {
 	Objects *game.GameObjectMap
 	Map     *game.MapChunk
 
-	Parameters *gutil.LuaParMap
+	config *gutil.LuaConfig
 
 	ServerCon net.Conn
 
@@ -59,10 +60,9 @@ type Game struct {
 	ServerWChan chan<- interface{}
 }
 
-func NewGame(params *gutil.LuaParMap) *Game {
-	g := Game{}
+func NewGame(config *gutil.LuaConfig) *Game {
+	g := Game{config: config}
 	g.Objects = game.NewGameObjectMap()
-	g.Parameters = params
 
 	g.CloseChan = make(chan bool, 1)
 
@@ -136,12 +136,12 @@ func (g *Game) Start() {
 	log.Print("Game: Starting")
 
 	// network setup
-	server, ok1 := g.Parameters.Get("server")
-	if !ok1 {
-		log.Fatal("Game: Start: missing server in config")
+	server, err := g.config.Get("server", reflect.String)
+	if err != nil {
+		log.Fatal("Game: Start: missing server in config: %s", err)
 	}
 
-	con, err := net.Dial("tcp", server)
+	con, err := net.Dial("tcp", server.(string))
 	if err != nil {
 		log.Fatalf("Game: Start: Dial: %s", err)
 	}
@@ -156,9 +156,9 @@ func (g *Game) Start() {
 	}
 
 	// login
-	username, ok2 := g.Parameters.Get("username")
-	if !ok2 {
-		log.Fatal("Game: Start: missing username in config")
+	username, err := g.config.Get("username", reflect.String)
+	if err != nil {
+		log.Fatal("Game: Start: missing username in config: %s", err)
 	}
 
 	g.ServerWChan <- gnet.NewPacket("Tconnect", username)

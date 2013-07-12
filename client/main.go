@@ -6,6 +6,7 @@ import (
 	"github.com/mischief/goland/game/gutil"
 	"log"
 	"os"
+	"reflect"
 	"runtime"
 	"runtime/pprof"
 )
@@ -30,17 +31,16 @@ func main() {
 	flag.Parse()
 
 	// load configuration
-	ParMap, err := gutil.LuaParMapFromFile(Lua, *configfile)
-	if err != nil || ParMap == nil {
+	config, err := gutil.NewLuaConfig(Lua, *configfile)
+	if err != nil {
 		log.Fatalf("main: Error loading configuration file %s: %s", *configfile, err)
 	}
 
-	lf, ok := ParMap.Get("logfile")
-	if !ok {
-		log.Printf("main: No logfile specified, using stdout")
+	if lf, err := config.Get("logfile", reflect.String); err != nil {
+		log.Fatalf("main: Error reading logfile from config: %s", err)
 	} else {
-		// open log file
-		f, err := os.OpenFile(lf, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
+		file := lf.(string)
+		f, err := os.OpenFile(file, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -60,17 +60,17 @@ func main() {
 	log.Printf("main: Config loaded from %s", *configfile)
 
 	// dump config
-	it := ParMap.Iter()
-	for k, v, b := it(); b != false; k, v, b = it() {
-		log.Printf("main: config: %s -> '%s'", k, v)
+	for ce := range config.Chan() {
+		log.Printf("main: config: %s -> '%s'", ce.Key, ce.Value)
 	}
 
 	// enable profiling
-	if cpuprofile, ok := ParMap.Get("cpuprofile"); ok {
-		log.Printf("main: Starting profiling in file %s", cpuprofile)
-		f, err := os.OpenFile(cpuprofile, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
+	if cpuprof, err := config.Get("cpuprofile", reflect.String); err == nil {
+		fname := cpuprof.(string)
+		log.Printf("main: Starting profiling in file %s", fname)
+		f, err := os.OpenFile(fname, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
 		if err != nil {
-			log.Fatal(err)
+			log.Printf("main: Can't open profiling file: %s", err)
 		}
 
 		pprof.StartCPUProfile(f)
@@ -78,7 +78,7 @@ func main() {
 	}
 
 	log.Println("Creating game instance")
-	g := NewGame(ParMap)
+	g := NewGame(config)
 
 	g.Run()
 

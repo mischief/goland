@@ -7,6 +7,7 @@ import (
 	"log"
 	"math/rand"
 	"os"
+	"reflect"
 	"runtime"
 	"runtime/pprof"
 	"time"
@@ -30,18 +31,18 @@ func main() {
 	flag.Parse()
 
 	// load configuration
-	ParMap, err := gutil.LuaParMapFromFile(Lua, *configfile)
-	if err != nil || ParMap == nil {
+	config, err := gutil.NewLuaConfig(Lua, *configfile)
+	if err != nil {
 		log.Fatalf("Error loading configuration file %s: %s", *configfile, err)
 	}
 
 	// setup logging
-	lf, ok := ParMap.Get("logfile")
-	if !ok {
-		log.Printf("No logfile specified, using stdout")
+	if lf, err := config.Get("logfile", reflect.String); err != nil {
+		log.Printf("main: Error reading logfile from config, using stdout: %s", err)
 	} else {
 		// open log file
-		f, err := os.OpenFile(lf, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
+		file := lf.(string)
+		f, err := os.OpenFile(file, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -49,41 +50,41 @@ func main() {
 		log.SetOutput(f)
 	}
 
-	log.Print("Main: Logging started")
+	log.Print("main: Logging started")
 
 	// log panics
 	defer func() {
 		if r := recover(); r != nil {
-			log.Printf("Main: Recovered from %v", r)
+			log.Printf("main: Recovered from %v", r)
 		}
 	}()
 
-	log.Printf("Main: Config loaded from %s", *configfile)
+	log.Printf("main: Config loaded from %s", *configfile)
 
 	// dump config
-	it := ParMap.Iter()
-	for k, v, b := it(); b != false; k, v, b = it() {
-		log.Printf("Main: Config: %s -> %s", k, v)
+	for ce := range config.Chan() {
+		log.Printf("main: config: %s -> '%s'", ce.Key, ce.Value)
 	}
 
 	// enable profiling
-	if cpuprofile, ok := ParMap.Get("cpuprofile"); ok {
-		log.Printf("Main: Starting profiling in file %s", cpuprofile)
-		f, err := os.Create(cpuprofile)
+	if cpuprof, err := config.Get("cpuprofile", reflect.String); err == nil {
+		fname := cpuprof.(string)
+		log.Printf("main: Starting profiling in file %s", fname)
+		f, err := os.OpenFile(fname, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
 		if err != nil {
-			log.Fatal(err)
+			log.Printf("main: Can't open profiling file: %s", err)
 		}
 
 		pprof.StartCPUProfile(f)
 		defer pprof.StopCPUProfile()
 	}
 
-	gs, err := NewGameServer(ParMap, Lua)
+	gs, err := NewGameServer(config, Lua)
 	if err != nil {
 		log.Println(err)
 	} else {
 		gs.Run()
 	}
 
-	log.Println("Main: Logging ended")
+	log.Println("main: Logging ended")
 }

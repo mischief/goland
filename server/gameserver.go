@@ -14,6 +14,7 @@ import (
 	"image"
 	"log"
 	"net"
+	"reflect"
 )
 
 var (
@@ -36,19 +37,21 @@ type GameServer struct {
 
 	Sessions map[int]*WorldSession //client list
 
-	Objects    *game.GameObjectMap
-	Map        *game.MapChunk
-	Parameters *gutil.LuaParMap
+	Objects *game.GameObjectMap
+	Map     *game.MapChunk
+
+	config *gutil.LuaConfig
 
 	Lua *lua.State
 }
 
-func NewGameServer(params *gutil.LuaParMap, ls *lua.State) (*GameServer, error) {
+func NewGameServer(config *gutil.LuaConfig, ls *lua.State) (*GameServer, error) {
+	gs := &GameServer{
+		config: config,
+	}
 
-	// flow network setup
-	gs := new(GameServer)
 	GS = gs
-	gs.Parameters = params
+
 	gs.InitGraphState()
 
 	// add nodes
@@ -77,18 +80,11 @@ func NewGameServer(params *gutil.LuaParMap, ls *lua.State) (*GameServer, error) 
 }
 
 func (gs *GameServer) Debug() bool {
-	if debug, ok := gs.Parameters.Get("debug"); !ok {
+	if debug, err := gs.config.Get("debug", reflect.Bool); err != nil {
 		log.Println("GameServer: 'debug' not found in config. defaulting to false")
 		return false
 	} else {
-		switch debug {
-		case "true":
-			return true
-		case "false":
-			return false
-		default:
-			return false
-		}
+		return debug.(bool)
 	}
 }
 
@@ -126,9 +122,13 @@ func (gs *GameServer) Start() {
 	// setup tcp listener
 	log.Printf("GameServer: Starting listener")
 
-	dialstr := ":61507"
-	if dialstr, ok := gs.Parameters.Get("listener"); !ok {
-		log.Println("GameServer: 'listen' not found in config. defaulting to ", dialstr)
+	var dialstr string
+	defaultdialstr := ":61507"
+	if dialconf, err := gs.config.Get("listener", reflect.String); err != nil {
+		log.Println("GameServer: 'listen' not found in config. defaulting to ", defaultdialstr)
+		dialstr = defaultdialstr
+	} else {
+		dialstr = dialconf.(string)
 	}
 
 	if gs.Listener, err = net.Listen("tcp", dialstr); err != nil {
@@ -168,11 +168,11 @@ func (gs *GameServer) LuaLog(fmt string, args ...interface{}) {
 
 func (gs *GameServer) GetScriptPath() string {
 	defaultpath := "../scripts/?.lua"
-	if scriptpath, ok := gs.Parameters.Get("scriptpath"); !ok {
-		log.Println("GameServer: 'scriptpath' not found in config. defaulting to ", defaultpath)
+	if scriptconf, err := gs.config.Get("scriptpath", reflect.String); err != nil {
+		log.Printf("GameServer: GetScriptPath defaulting to %s: %s", defaultpath, err)
 		return defaultpath
 	} else {
-		return scriptpath
+		return scriptconf.(string)
 	}
 }
 
