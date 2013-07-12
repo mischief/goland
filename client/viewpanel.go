@@ -27,8 +27,9 @@ func NewViewPanel(g *Game) *ViewPanel {
 
 func (vp *ViewPanel) Update(delta time.Duration) {
 	// should set camera center
-	if vp.g.Player != nil {
-		vp.cam.SetCenter(image.Pt(vp.g.Player.GetPos()))
+	p := vp.g.GetPlayer()
+	if p != nil {
+		vp.cam.SetCenter(image.Pt(p.GetPos()))
 	} else {
 		vp.cam.SetCenter(image.Pt(256/2, 256/2))
 	}

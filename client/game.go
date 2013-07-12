@@ -11,6 +11,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"sync"
 	"time"
 )
 
@@ -35,7 +36,8 @@ var (
 )
 
 type Game struct {
-	Player game.Object
+	player game.Object
+	pm     sync.Mutex
 
 	Terminal
 	logpanel  *LogPanel
@@ -64,7 +66,7 @@ func NewGame(params *gutil.LuaParMap) *Game {
 
 	g.CloseChan = make(chan bool, 1)
 
-	g.Player = game.NewGameObject("")
+	g.player = game.NewGameObject("")
 
 	g.mainpanel = panel.MainScreen()
 	g.panels = make(map[string]panel.Panel)
@@ -88,6 +90,13 @@ func NewGame(params *gutil.LuaParMap) *Game {
 func (g *Game) SendPacket(p *gnet.Packet) {
 	log.Printf("Game: SendPacket: %s", p)
 	g.ServerWChan <- p
+}
+
+func (g *Game) GetPlayer() game.Object {
+	g.pm.Lock()
+	defer g.pm.Unlock()
+
+	return g.player
 }
 
 func (g *Game) Run() {
@@ -200,10 +209,12 @@ func (g *Game) Start() {
 				p := &gnet.Packet{"Taction", CARDINALS[c]}
 				g.SendPacket(p)
 				offset := game.DirTable[d]
-				oldposx, oldposy := g.Player.GetPos()
+				g.pm.Lock()
+				defer g.pm.Unlock()
+				oldposx, oldposy := g.player.GetPos()
 				newpos := image.Pt(oldposx+offset.X, oldposy+offset.Y)
 				if g.Map.CheckCollision(nil, newpos) {
-					g.Player.SetPos(newpos.X, newpos.Y)
+					g.player.SetPos(newpos.X, newpos.Y)
 				}
 			})
 
@@ -311,7 +322,9 @@ func (g *Game) HandlePacket(pk *gnet.Packet) {
 
 		pl := g.Objects.FindObjectByID(playerid)
 		if pl != nil {
-			g.Player = pl
+			g.pm.Lock()
+			g.player = pl
+			g.pm.Unlock()
 		} else {
 			log.Printf("Game: HandlePacket: can't find our player %s", playerid)
 

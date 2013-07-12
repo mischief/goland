@@ -4,6 +4,7 @@ import (
 	"github.com/errnoh/termbox/panel"
 	"github.com/nsf/termbox-go"
 	"image"
+	"sync"
 )
 
 const (
@@ -15,6 +16,7 @@ const (
 // i.e. old entries fall off (not off the front, off the back)
 type LogPanel struct {
 	*panel.Buffered
+	sync.Mutex
 	size  image.Point // log WxH
 	lines int         // number of lines to show
 
@@ -48,6 +50,8 @@ func (lp *LogPanel) HandleInput(ev termbox.Event) {
 
 // Draw log to internal panel
 func (lp *LogPanel) Draw() {
+	lp.Lock()
+	defer lp.Unlock()
 	lp.Clear()
 
 	fg := termbox.ColorBlue
@@ -82,6 +86,8 @@ func (lp *LogPanel) Draw() {
 
 // Write a line to the log
 func (lp *LogPanel) Write(p []byte) (n int, err error) {
+	lp.Lock()
+	defer lp.Unlock()
 	end := (lp.start + lp.count) % lp.lines
 
 	lp.messages[end] = string(p)
