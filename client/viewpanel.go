@@ -7,6 +7,13 @@ import (
 	"time"
 )
 
+const (
+	VIEW_START_X = 1
+	VIEW_START_Y = 3
+	VIEW_PAD_X   = 1
+	VIEW_PAD_Y   = 8
+)
+
 // ViewPanel holds the main viewport of the game,
 // and needs a camera to apply the view transformation.
 type ViewPanel struct {

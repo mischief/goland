@@ -30,6 +30,7 @@ func NewChatPanel(g *Game, t *Terminal) *ChatPanel {
 
 func (c *ChatPanel) HandleInput(ev termbox.Event) {
 	c.m.Lock()
+	defer c.m.Unlock()
 	switch ev.Type {
 	case termbox.EventKey:
 		if ev.Ch != 0 {
@@ -75,7 +76,6 @@ func (c *ChatPanel) HandleInput(ev termbox.Event) {
 
 	}
 
-	c.m.Unlock()
 }
 
 func (c *ChatPanel) Draw() {

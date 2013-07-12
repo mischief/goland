@@ -4,13 +4,6 @@ import (
 	"image"
 )
 
-const (
-	VIEW_START_X = 1
-	VIEW_START_Y = 3
-	VIEW_PAD_X   = 1
-	VIEW_PAD_Y   = 7
-)
-
 type Camera struct {
 	Pos      image.Point     // center of the camera
 	SizeRect image.Rectangle // camera's size
