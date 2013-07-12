@@ -208,6 +208,8 @@ func (gs *GameServer) SendPkStrAll(tag string, data interface{}) {
 
 // send a packet to all clients
 func (gs *GameServer) SendPacketAll(pk *gnet.Packet) {
+	gs.DefaultSubject.Lock()
+	defer gs.DefaultSubject.Unlock()
 	for s := gs.DefaultSubject.Observers.Front(); s != nil; s = s.Next() {
 		s.Value.(*WorldSession).SendPacket(pk)
 	}
@@ -345,25 +347,25 @@ func Action_Inventory(gs *GameServer, cp *ClientPacket) {
 	if len(inv) == 0 {
 		cp.Reply(gnet.NewPacket("Rchat", "You have 0 items."))
 	} else {
-    counts := make(map[string]int)
+		counts := make(map[string]int)
 		for sub := range inv {
-      n := sub.GetName()
-      if _, ok := counts[n]; ok {
-      counts[n]++
-    } else {
-      counts[n] = 1
-    }
-  }
+			n := sub.GetName()
+			if _, ok := counts[n]; ok {
+				counts[n]++
+			} else {
+				counts[n] = 1
+			}
+		}
 
-  for n, c := range counts {
-    if c == 1 {
-    cp.Reply(gnet.NewPacket("Rchat", fmt.Sprintf("You have a %s.", n)))
-  } else {
-    cp.Reply(gnet.NewPacket("Rchat", fmt.Sprintf("You have %d %ss.", c, n)))
-  }
+		for n, c := range counts {
+			if c == 1 {
+				cp.Reply(gnet.NewPacket("Rchat", fmt.Sprintf("You have a %s.", n)))
+			} else {
+				cp.Reply(gnet.NewPacket("Rchat", fmt.Sprintf("You have %d %ss.", c, n)))
+			}
 
-}
-  }
+		}
+	}
 
 }
 

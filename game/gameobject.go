@@ -169,28 +169,28 @@ func (gob *GameObject) Draw(buf *tulib.Buffer, pos image.Point) {
 
 // handy interface for a collection of game objects
 type GameObjectMap struct {
-	objs map[int]Object
+	Objs map[int]Object
 
 	m sync.Mutex
 }
 
 func NewGameObjectMap() *GameObjectMap {
-	g := GameObjectMap{objs: make(map[int]Object)}
+	g := GameObjectMap{Objs: make(map[int]Object)}
 	return &g
 }
 
 func (gom *GameObjectMap) Add(obj Object) {
 	// make sure we don't double insert
 	gom.m.Lock()
-	if _, ok := gom.objs[obj.GetID()]; !ok {
-		gom.objs[obj.GetID()] = obj
+	if _, ok := gom.Objs[obj.GetID()]; !ok {
+		gom.Objs[obj.GetID()] = obj
 	}
 	gom.m.Unlock()
 }
 
 func (gom *GameObjectMap) RemoveObject(obj Object) {
 	gom.m.Lock()
-	delete(gom.objs, obj.GetID())
+	delete(gom.Objs, obj.GetID())
 	gom.m.Unlock()
 }
 
@@ -198,7 +198,7 @@ func (gom *GameObjectMap) FindObjectByID(id int) Object {
 	gom.m.Lock()
 	defer gom.m.Unlock()
 
-	o, ok := gom.objs[id]
+	o, ok := gom.Objs[id]
 
 	if !ok {
 		return nil
@@ -211,13 +211,13 @@ func (gom *GameObjectMap) Chan() <-chan Object {
 	gom.m.Lock()
 	defer gom.m.Unlock()
 
-	ch := make(chan Object, len(gom.objs))
+	ch := make(chan Object, len(gom.Objs))
 
-	for _, o := range gom.objs {
+	for _, o := range gom.Objs {
 		ch <- o
 	}
 
-  close(ch)
+	close(ch)
 
 	return ch
 }
@@ -229,7 +229,7 @@ func (gom *GameObjectMap) GetSlice() []Object {
 	defer gom.m.Unlock()
 
 	r := make([]Object, 1)
-	for _, o := range gom.objs {
+	for _, o := range gom.Objs {
 		r = append(r, o)
 	}
 	return r
