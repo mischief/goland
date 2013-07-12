@@ -14,12 +14,24 @@ type LuaConfigElement struct {
 	Value interface{}
 }
 
+// LuaConfig conveniently wraps a lua file as a go map,
+// and config elements can be accesses through Get().
 type LuaConfig struct {
 	file string //
 	conf map[string]interface{}
 	m    sync.Mutex
 }
 
+// Construct a new LuaConfig given the lua state and file name.
+// Returns *LuaConfig, nil on success and nil, error on error.
+// Expects that the file provided is a lua script that will return a
+// table of strings to values, for example:
+// config = {
+//   key = "value",
+//   boolean = false,
+// }
+// return config
+//
 func NewLuaConfig(lua *lua.State, file string) (*LuaConfig, error) {
 	lc := &LuaConfig{file: file}
 
@@ -33,6 +45,10 @@ func NewLuaConfig(lua *lua.State, file string) (*LuaConfig, error) {
 	return lc, nil
 }
 
+// Get will walk the config for key, and assert that its value is of Kind expected.
+// Returns value, nil on success and nil, error on error.
+// Get will accept keys like "table.subtable.key", and will walk tables until it finds
+// the last element in the key, or abort on error.
 func (lc *LuaConfig) Get(key string, expected reflect.Kind) (res interface{}, err error) {
 	lc.m.Lock()
 	defer lc.m.Unlock()
@@ -54,8 +70,11 @@ func (lc *LuaConfig) Get(key string, expected reflect.Kind) (res interface{}, er
 					return val, nil
 				}
 			} else {
-				// TODO: advance one map down
-				return nil, fmt.Errorf("I can't walk yet!")
+				if newm, ok := val.(map[string]interface{}); ok {
+					m = newm
+				} else {
+					return nil, fmt.Errorf("LuaConfig: %s: key %s is not a table", lc.file, p)
+				}
 			}
 		}
 	}
@@ -63,6 +82,7 @@ func (lc *LuaConfig) Get(key string, expected reflect.Kind) (res interface{}, er
 	return
 }
 
+// Gives a channel which will contain top-level config elements
 func (lc *LuaConfig) Chan() <-chan LuaConfigElement {
 	lc.m.Lock()
 	defer lc.m.Unlock()
