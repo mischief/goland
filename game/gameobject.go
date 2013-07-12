@@ -10,6 +10,7 @@ import (
 	//	uuid "github.com/nu7hatch/gouuid"
 	"image"
 	//"log"
+	"sync"
 	"time"
 )
 
@@ -168,27 +169,36 @@ func (gob *GameObject) Draw(buf *tulib.Buffer, pos image.Point) {
 
 // handy interface for a collection of game objects
 type GameObjectMap struct {
-	Objs map[int]Object
+	objs map[int]Object
+
+	m sync.Mutex
 }
 
 func NewGameObjectMap() *GameObjectMap {
-	g := GameObjectMap{Objs: make(map[int]Object)}
+	g := GameObjectMap{objs: make(map[int]Object)}
 	return &g
 }
 
 func (gom *GameObjectMap) Add(obj Object) {
 	// make sure we don't double insert
-	if _, ok := gom.Objs[obj.GetID()]; !ok {
-		gom.Objs[obj.GetID()] = obj
+	gom.m.Lock()
+	if _, ok := gom.objs[obj.GetID()]; !ok {
+		gom.objs[obj.GetID()] = obj
 	}
+	gom.m.Unlock()
 }
 
 func (gom *GameObjectMap) RemoveObject(obj Object) {
-	delete(gom.Objs, obj.GetID())
+	gom.m.Lock()
+	delete(gom.objs, obj.GetID())
+	gom.m.Unlock()
 }
 
 func (gom *GameObjectMap) FindObjectByID(id int) Object {
-	o, ok := gom.Objs[id]
+	gom.m.Lock()
+	defer gom.m.Unlock()
+
+	o, ok := gom.objs[id]
 
 	if !ok {
 		return nil
@@ -197,11 +207,29 @@ func (gom *GameObjectMap) FindObjectByID(id int) Object {
 	return o
 }
 
+func (gom *GameObjectMap) Chan() <-chan Object {
+	gom.m.Lock()
+	defer gom.m.Unlock()
+
+	ch := make(chan Object, len(gom.objs))
+
+	for _, o := range gom.objs {
+		ch <- o
+	}
+
+  close(ch)
+
+	return ch
+}
+
 // return a slice containing the objects
 // XXX: crappy hack so lua can iterate the contents
 func (gom *GameObjectMap) GetSlice() []Object {
+	gom.m.Lock()
+	defer gom.m.Unlock()
+
 	r := make([]Object, 1)
-	for _, o := range gom.Objs {
+	for _, o := range gom.objs {
 		r = append(r, o)
 	}
 	return r

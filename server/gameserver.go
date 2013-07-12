@@ -256,7 +256,7 @@ func (gs *GameServer) HandlePacket(cp *ClientPacket) {
 		gs.Objects.Add(newplayer)
 
 		// tell client about all other objects
-		for _, o := range gs.Objects.Objs {
+		for o := range gs.Objects.Chan() {
 			if o.GetID() != newplayer.GetID() {
 				cp.Reply(gnet.NewPacket("Rnewobject", o))
 			}
@@ -298,7 +298,7 @@ func Action_ItemPickup(gs *GameServer, cp *ClientPacket) {
 	// we assume our cp.Data is a game.Action of type ACTION_ITEM_PICKUP
 	// act accordingly
 
-	for _, o := range gs.Objects.Objs {
+	for o := range gs.Objects.Chan() {
 		// if same pos.. and gettable
 		if game.SamePos(o, p) && o.GetTag("gettable") {
 			// pickup item.
@@ -319,7 +319,7 @@ func Action_ItemPickup(gs *GameServer, cp *ClientPacket) {
 // TODO: this drops all items right now. make it drop individual items
 func Action_ItemDrop(gs *GameServer, cp *ClientPacket) {
 	p := cp.Client.Player
-	for _, sub := range p.GetSubObjects().Objs {
+	for sub := range p.GetSubObjects().Chan() {
 		log.Printf("GameServer: Action_ItemDrop: %s dropping %s", p, sub)
 
 		// remove item from player
@@ -340,15 +340,31 @@ func Action_ItemDrop(gs *GameServer, cp *ClientPacket) {
 func Action_Inventory(gs *GameServer, cp *ClientPacket) {
 	plobj := cp.Client.Player
 
-	inv := plobj.GetSubObjects().Objs
+	inv := plobj.GetSubObjects().Chan()
 
 	if len(inv) == 0 {
 		cp.Reply(gnet.NewPacket("Rchat", "You have 0 items."))
 	} else {
-		for _, sub := range inv {
-			cp.Reply(gnet.NewPacket("Rchat", fmt.Sprintf("You have a %s.", sub.GetName())))
-		}
-	}
+    counts := make(map[string]int)
+		for sub := range inv {
+      n := sub.GetName()
+      if _, ok := counts[n]; ok {
+      counts[n]++
+    } else {
+      counts[n] = 1
+    }
+  }
+
+  for n, c := range counts {
+    if c == 1 {
+    cp.Reply(gnet.NewPacket("Rchat", fmt.Sprintf("You have a %s.", n)))
+  } else {
+    cp.Reply(gnet.NewPacket("Rchat", fmt.Sprintf("You have %d %ss.", c, n)))
+  }
+
+}
+  }
+
 }
 
 // Top level handler for Taction packets
@@ -385,7 +401,7 @@ func (gs *GameServer) HandleMovementPacket(cp *ClientPacket) {
 	}
 
 	// check gameobject collision
-	for _, o := range gs.Objects.Objs {
+	for o := range gs.Objects.Chan() {
 
 		// check if collision with Item and item name is flag
 		px, py := o.GetPos()
@@ -410,7 +426,7 @@ func (gs *GameServer) HandleMovementPacket(cp *ClientPacket) {
 				cp.Reply(gnet.NewPacket("Rchat", fmt.Sprintf("Ouch! You bump into %s.", o.GetName())))
 
 				// check if other player's got the goods
-				for _, sub := range o.GetSubObjects().Objs {
+				for sub := range o.GetSubObjects().Chan() {
 					if sub.GetTag("item") == true {
 						// swap pop'n'lock
 

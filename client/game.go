@@ -241,7 +241,7 @@ func (g *Game) Update(delta time.Duration) {
 
 	g.RunInputHandlers()
 
-	for _, o := range g.Objects.Objs {
+	for o := range g.Objects.Chan() {
 		o.Update(delta)
 	}
 
@@ -282,7 +282,7 @@ func (g *Game) HandlePacket(pk *gnet.Packet) {
 	case "Raction":
 		robj := pk.Data.(game.Object) // remote object
 
-		for _, o := range g.Objects.Objs {
+		for o := range g.Objects.Chan() {
 			if o.GetID() == robj.GetID() {
 				o.SetPos(robj.GetPos())
 			} /*else if o.GetTag("item") {

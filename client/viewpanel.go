@@ -63,7 +63,7 @@ func (vp *ViewPanel) Draw() {
 		}
 	}
 
-	for _, o := range vp.g.Objects.Objs {
+	for o := range vp.g.Objects.Chan() {
 		if o.GetTag("visible") {
 			realpos := vp.cam.Transform(image.Pt(o.GetPos()))
 			g := o.GetGlyph()
