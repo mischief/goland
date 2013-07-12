@@ -4,23 +4,22 @@ import (
 	"fmt"
 	"github.com/nsf/termbox-go"
 	"github.com/nsf/tulib"
-	"image"
 	"log"
+	"sync"
 )
 
 type KeyHandler func(ev termbox.Event)
 
 type Terminal struct {
-	tulib.Buffer
 	EventChan chan termbox.Event
-	AltChan   chan termbox.Event
+
+	AltInputHandler InputHandler
+	AltChan         chan termbox.Event
 
 	runehandlers map[rune]KeyHandler
 	keyhandlers  map[termbox.Key]KeyHandler
-}
 
-func (t *Terminal) Size() image.Point {
-	return image.Point{t.Rect.Width, t.Rect.Height}
+	m sync.Mutex
 }
 
 func (t *Terminal) Start() error {
@@ -28,8 +27,6 @@ func (t *Terminal) Start() error {
 	if err != nil {
 		panic(err)
 	}
-
-	t.Buffer = tulib.TermboxBuffer()
 
 	t.EventChan = make(chan termbox.Event)
 
@@ -52,17 +49,24 @@ func (t *Terminal) End() {
 
 func (t *Terminal) Clear() {
 	termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
-	t.Buffer = tulib.TermboxBuffer()
 }
 
 func (t *Terminal) Flush() {
 	termbox.Flush()
 }
 
-// Provides an alternate channel to send terminal keys to.
-func (t *Terminal) SetAltChan(alt chan termbox.Event) {
-	log.Printf("Changing event channels")
-	t.AltChan = alt
+// Change the panel which handles input.
+// This should probably be push/pop.
+func (t *Terminal) SetInputHandler(ih InputHandler) (old InputHandler) {
+	t.m.Lock()
+	defer t.m.Unlock()
+
+	log.Printf("Changing InputHandler")
+
+	old = t.AltInputHandler
+	t.AltInputHandler = ih
+
+	return
 }
 
 func (t *Terminal) RunInputHandlers() error {
@@ -73,9 +77,9 @@ func (t *Terminal) RunInputHandlers() error {
 		case termbox.EventKey:
 			log.Printf("Keypress: %s", tulib.KeyToString(ev.Key, ev.Ch, ev.Mod))
 
-			if t.AltChan != nil {
+			if t.AltInputHandler != nil {
 				log.Printf("Diverting keypress")
-				t.AltChan <- ev
+				t.AltInputHandler.HandleInput(ev)
 			} else {
 
 				if ev.Ch != 0 { // this is a character
@@ -107,10 +111,14 @@ func (t *Terminal) Resize(neww, newh int) {
 }
 
 func (t *Terminal) HandleRune(r rune, h KeyHandler) {
+	t.m.Lock()
+	defer t.m.Unlock()
 	t.runehandlers[r] = h
 }
 
 func (t *Terminal) HandleKey(k termbox.Key, h KeyHandler) {
+	t.m.Lock()
+	defer t.m.Unlock()
 	t.keyhandlers[k] = h
 }
 

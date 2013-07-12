@@ -59,13 +59,13 @@ func (c *ChatPanel) HandleInput(ev termbox.Event) {
 				if c.Len() > 0 {
 					c.g.SendPacket(gnet.NewPacket("Tchat", c.String()))
 					c.Reset()
-					c.term.SetAltChan(nil)
+					c.term.SetInputHandler(nil)
 
 				}
 			case termbox.KeyEsc:
 				// input cancelled
 				c.Reset()
-				c.term.SetAltChan(nil)
+				c.term.SetInputHandler(nil)
 			}
 		}
 	case termbox.EventResize:

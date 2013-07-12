@@ -190,7 +190,7 @@ func (g *Game) Start() {
 	g.HandleKey(termbox.KeyEsc, func(ev termbox.Event) { g.CloseChan <- false })
 
 	// Enter to chat
-	g.HandleKey(termbox.KeyEnter, func(ev termbox.Event) { g.SetAltChan(g.chatpanel.Input) })
+	g.HandleKey(termbox.KeyEnter, func(ev termbox.Event) { g.SetInputHandler(g.chatpanel) })
 
 	// convert to func SetupDirections()
 	for k, v := range CARDINALS {
