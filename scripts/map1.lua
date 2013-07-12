@@ -4,22 +4,23 @@ collision = require('collision')
 
 -- the goods
 flags = {
-  {'flag', 124, 124, '†'},
-  {'flag', 124, 128, '†'},
-  {'flag', 128, 122, '†'},
-  {'flag', 128, 124, '†'},
+  {'flag', 119, 125, '†', 'red', ''},
+  {'flag', 119, 133, '†', 'red', ''},
+  {'flag', 129, 125, '†', 'blue', ''},
+  {'flag', 129, 133, '†', 'blue', ''},
 }
 
 blocks = {
-  {'block', 123, 130, '¤'},
-  {'block', 124, 129, '¤'},
-  {'block', 124, 131, '¤'},
-  {'block', 125, 130, '¤'},
+  {'block', 122, 130, '¤', 'red', ''},
+  {'block', 124, 128, '¤', 'red', ''},
+  {'block', 124, 132, '¤', 'blue', ''},
+  {'block', 126, 130, '¤', 'blue', ''},
 }
 
 score = {
-  {'scorepoint', 97, 115, '_'},
-  {'scorepoint', 124, 130, '_'},
+  {'scorepoint', 97, 115, '_', 'white', 'red'},
+  {'scorepoint', 124, 130, '_', 'white', 'green'},
+  {'scorepoint', 152, 140, '_', 'white', 'blue'},
 }
 
 scores = {}
@@ -101,7 +102,7 @@ fns.load = function()
     sp = object.New(v[1])
     sp.SetPos(v[2], v[3])
     sp.SetTag('visible', true)
-    sp.SetGlyph(util.NewGlyph(v[4]))
+    sp.SetGlyph(util.NewGlyph(v[4], v[5], v[6]))
     gs.AddObject(sp)
   end
 end

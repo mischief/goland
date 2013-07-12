@@ -16,7 +16,7 @@ end
 local load = function(items)
   for k,v in pairs(items) do
     i = new(v[1], v[2], v[3])
-    i.SetGlyph(util.NewGlyph(v[4]))
+    i.SetGlyph(util.NewGlyph(v[4], v[5], v[6]))
 
     --gameserver.LuaLog(string.format("%s %d %d", i.GetName(), i.GetPos()))
 
