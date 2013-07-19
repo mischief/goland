@@ -23,10 +23,10 @@ var attrmap = map[string]termbox.Attribute{
 }
 
 func StrToTermboxAttr(str string) termbox.Attribute {
-  attr, ok := attrmap[str]
-  if ok {
-    return attr
-  }
+	attr, ok := attrmap[str]
+	if ok {
+		return attr
+	}
 
-  return attrmap["default"]
+	return attrmap["default"]
 }

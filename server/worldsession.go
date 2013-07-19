@@ -2,12 +2,12 @@ package main
 
 import (
 	"fmt"
+	"github.com/golang/glog"
 	"github.com/mischief/gochanio"
 	"github.com/mischief/goland/game"
 	"github.com/mischief/goland/game/gnet"
 	uuid "github.com/nu7hatch/gouuid"
 	"image"
-	"log"
 	"net"
 )
 
@@ -38,7 +38,7 @@ func NewWorldSession(w *GameServer, c net.Conn) *WorldSession {
 	n.ClientWChan = chanio.NewWriter(n.Con)
 
 	if id, err = uuid.NewV4(); err != nil {
-		log.Printf("NewWorldSession: %s", err)
+		glog.Error("uuid.NewV4: ", err)
 		return nil
 	} else {
 		n.ID = *id
@@ -53,14 +53,14 @@ func NewWorldSession(w *GameServer, c net.Conn) *WorldSession {
 func (ws *WorldSession) ReceiveProc() {
 	defer func() {
 		if err := recover(); err != nil {
-			log.Printf("WorldSession: ReceiveProc: %s", err)
+			glog.Warning("receiveproc: ", err)
 		}
 	}()
 
 	for x := range ws.ClientRChan {
 		p, ok := x.(*gnet.Packet)
 		if !ok {
-			log.Printf("WorldSession: ReceiveProc: bad packet %#v from %s", x, ws.Con.RemoteAddr())
+			glog.Warning("receiveproc: bogus packet %#v from %s", x, ws.Con.RemoteAddr())
 			continue
 		}
 
@@ -73,16 +73,18 @@ func (ws *WorldSession) ReceiveProc() {
 
 	ws.World.PacketChan <- dis
 
-	log.Printf("WorldSession: ReceiveProc: Channel closed %s", ws)
+	glog.Infof("receiveproc: channel closed %s", ws)
 }
 
 // send packet to this client
 func (ws *WorldSession) SendPacket(pk *gnet.Packet) {
-	log.Printf("WorldSession: SendPacket: %s %s", ws.Con.RemoteAddr(), pk)
+	if glog.V(2) {
+		glog.Infof("sendpacket: %s %s", ws.Con.RemoteAddr(), pk)
+	}
 
 	defer func() {
 		if err := recover(); err != nil {
-			log.Printf("WorldSession: SendPacket: error: %s", err)
+			glog.Error("sendpacket: error: ", err)
 		}
 	}()
 	ws.ClientWChan <- pk

@@ -124,11 +124,11 @@ type MapChunk struct {
 	Rect        image.Rectangle
 	Locations   [][]*Terrain  // land features
 	GameObjects []*GameObject // active game objects
-	Players     []*Player     // active players
+	//Players     []*Player     // active players
 }
 
 func (mc *MapChunk) String() string {
-	return fmt.Sprintf("(%s %s objs %d players %d)", mc.Size, mc.Rect, len(mc.GameObjects), len(mc.Players))
+	return fmt.Sprintf("(%s %s objs %d players %d)", mc.Size, mc.Rect, len(mc.GameObjects))
 }
 
 func NewMapChunk() *MapChunk {

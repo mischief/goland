@@ -27,9 +27,11 @@ func NewPlayerPanel(g *Game) *PlayerPanel {
 }
 
 func (c *PlayerPanel) Update(delta time.Duration) {
-	p := c.g.GetPlayer()
-	c.x, c.y = p.GetPos()
-	c.name = p.GetName()
+	/*
+		p := c.g.GetPlayer()
+		c.x, c.y = p.GetPos()
+		c.name = p.GetName()
+	*/
 }
 
 func (c *PlayerPanel) HandleInput(ev termbox.Event) {

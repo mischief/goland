@@ -6,14 +6,15 @@ package main
 import (
 	"fmt"
 	"github.com/aarzilli/golua/lua"
+	"github.com/golang/glog"
 	"github.com/mischief/goland/game"
 	"github.com/mischief/goland/game/gnet"
 	"github.com/mischief/goland/game/gutil"
 	"github.com/stevedonovan/luar"
-	"github.com/trustmaster/goflow"
 	"image"
-	"log"
 	"net"
+	"os"
+	"os/signal"
 	"reflect"
 )
 
@@ -28,7 +29,13 @@ var (
 )
 
 type GameServer struct {
-	flow.Graph // graph for our procs; see goflow
+	scene *game.Scene
+
+	msys *game.MovementSystem
+	nsys *ServerNetworkSystem
+
+	closechan chan bool
+	sigchan   chan os.Signal
 
 	Listener   net.Listener       // acceptor of client connections
 	PacketChan chan *ClientPacket // channel where clients packets arrive
@@ -42,46 +49,24 @@ type GameServer struct {
 
 	config *gutil.LuaConfig
 
-	Lua *lua.State
+	lua *lua.State
 }
 
 func NewGameServer(config *gutil.LuaConfig, ls *lua.State) (*GameServer, error) {
 	gs := &GameServer{
-		config: config,
+		scene:     game.NewScene(),
+		closechan: make(chan bool, 1),
+		sigchan:   make(chan os.Signal, 1),
+		config:    config,
+		lua:       ls,
 	}
-
-	GS = gs
-
-	gs.InitGraphState()
-
-	// add nodes
-	gs.Add(NewPacketRouter(gs), "router")
-	gs.Add(new(PacketLogger), "logger")
-
-	// connect processes
-	gs.Connect("router", "Log", "logger", "In", make(chan *ClientPacket))
-
-	// map external ports
-	gs.MapInPort("In", "router", "In")
-
-	gs.PacketChan = make(chan *ClientPacket, 5)
-	gs.SetInPort("In", gs.PacketChan)
-
-	// observers setup
-	gs.DefaultSubject = game.NewDefaultSubject()
-
-	// objects setup
-	gs.Objects = game.NewGameObjectMap()
-
-	// lua state
-	gs.Lua = ls
 
 	return gs, nil
 }
 
 func (gs *GameServer) Debug() bool {
 	if debug, err := gs.config.Get("debug", reflect.Bool); err != nil {
-		log.Println("GameServer: 'debug' not found in config. defaulting to false")
+		glog.Warning("'debug' not found in config. defaulting to false")
 		return false
 	} else {
 		return debug.(bool)
@@ -91,19 +76,30 @@ func (gs *GameServer) Debug() bool {
 func (gs *GameServer) Run() {
 	gs.Start()
 
-	for {
-		conn, err := gs.Listener.Accept()
-		if err != nil {
-			log.Println("GameServer: acceptor: ", err)
-			continue
+	run := true
+
+	for run {
+		select {
+		case <-gs.closechan:
+			glog.Info("got close signal")
+			run = false
+		case <-gs.sigchan:
+			gs.closechan <- true
 		}
+		/*
+			conn, err := gs.Listener.Accept()
+			if err != nil {
+				glog.Errorf("acceptor: ", err)
+				continue
+			}
 
-		ws := NewWorldSession(gs, conn)
-		gs.Attach(ws)
+			ws := NewWorldSession(gs, conn)
+			gs.Attach(ws)
 
-		log.Printf("GameServer: New connection from %s", ws.Con.RemoteAddr())
+			glog.Infof("new connection from %s", ws.Con.RemoteAddr())
 
-		go ws.ReceiveProc()
+			go ws.ReceiveProc()
+		*/
 	}
 
 	gs.End()
@@ -112,50 +108,63 @@ func (gs *GameServer) Run() {
 func (gs *GameServer) Start() {
 	var err error
 
+	glog.Info("starting")
+
+	if glog.V(2) {
+		glog.Info("hooking signals")
+	}
+
+	signal.Notify(gs.sigchan, os.Interrupt)
+
+	var listen string
+	defaultlistenstr := ":61507"
+	if listenconf, err := gs.config.Get("listener", reflect.String); err != nil {
+		glog.Info("'listen' not found in config. defaulting to ", defaultlistenstr)
+		listen = defaultlistenstr
+	} else {
+		listen = listenconf.(string)
+	}
+
+	if gs.msys, err = game.NewMovementSystem(gs.scene); err != nil {
+		glog.Fatalf("movementsystem: %s", err)
+	}
+
+	if gs.nsys, err = NewServerNetworkSystem(gs.scene, listen); err != nil {
+		glog.Fatalf("servernetworksystem: %s", err)
+	}
+
 	// load assets
-	log.Print("GameServer: Loading assets")
+	glog.Info("loading assets")
 	if gs.LoadAssets() != true {
-		log.Printf("GameServer: LoadAssets failed")
+		glog.Error("loading assets failed")
 		return
 	}
 
-	// setup tcp listener
-	log.Printf("GameServer: Starting listener")
-
-	var dialstr string
-	defaultdialstr := ":61507"
-	if dialconf, err := gs.config.Get("listener", reflect.String); err != nil {
-		log.Println("GameServer: 'listen' not found in config. defaulting to ", defaultdialstr)
-		dialstr = defaultdialstr
-	} else {
-		dialstr = dialconf.(string)
-	}
-
-	if gs.Listener, err = net.Listen("tcp", dialstr); err != nil {
-		log.Fatalf("GameServer: %s", err)
-	}
-
-	// setup goflow network
-	log.Print("GameServer: Starting flow")
-
-	flow.RunNet(gs)
 }
 
 func (gs *GameServer) End() {
+	glog.Info("ending")
+
+	gs.msys.Stop()
+	gs.nsys.Stop()
+	gs.scene.Wg.Wait()
+
+	glog.Info("done ending")
+	glog.Flush()
 }
 
 func (gs *GameServer) LoadMap(file string) bool {
 	if gs.Map = game.MapChunkFromFile(file); gs.Map == nil {
-		log.Printf("GameServer: LoadMap: failed loading %s", file)
+		glog.Error("failed loading map ", file)
 		return false
 	}
 
-	log.Printf("GameServer: LoadMap: loaded map %s", file)
+	glog.Info("loaded map ", file)
 	return true
 }
 
 func (gs *GameServer) AddObject(obj game.Object) {
-	log.Printf("Adding object %s", obj)
+	glog.Infof("adding object %s", obj)
 
 	// tell clients about new object
 	gs.SendPkStrAll("Rnewobject", obj)
@@ -163,13 +172,13 @@ func (gs *GameServer) AddObject(obj game.Object) {
 }
 
 func (gs *GameServer) LuaLog(fmt string, args ...interface{}) {
-	log.Printf("GameServer: Lua: "+fmt, args...)
+	glog.Infof("lua: "+fmt, args...)
 }
 
 func (gs *GameServer) GetScriptPath() string {
 	defaultpath := "../scripts/?.lua"
 	if scriptconf, err := gs.config.Get("scriptpath", reflect.String); err != nil {
-		log.Printf("GameServer: GetScriptPath defaulting to %s: %s", defaultpath, err)
+		glog.Warningf("GetScriptPath defaulting to %s: %s", defaultpath, err)
 		return defaultpath
 	} else {
 		return scriptconf.(string)
@@ -178,24 +187,24 @@ func (gs *GameServer) GetScriptPath() string {
 
 // TODO: move these bindings into another file
 func (gs *GameServer) BindLua() {
-	luar.Register(gs.Lua, "", luar.Map{
+	luar.Register(gs.lua, "", luar.Map{
 		"gs": gs,
 	})
 
 	// add our script path here..
 	pkgpathscript := `package.path = package.path .. ";" .. gs.GetScriptPath() --";../?.lua"`
-	if err := gs.Lua.DoString(pkgpathscript); err != nil {
+	if err := gs.lua.DoString(pkgpathscript); err != nil {
 	}
 
-	Lua_OpenObjectLib(gs.Lua)
+	Lua_OpenObjectLib(gs.lua)
 }
 
 // load everything from lua scripts
 func (gs *GameServer) LoadAssets() bool {
 	gs.BindLua()
 
-	if err := gs.Lua.DoString("require('system')"); err != nil {
-		log.Printf("GameServer: LoadAssets: %s", err)
+	if err := gs.lua.DoString("require('system')"); err != nil {
+		glog.Errorf("loadassets: %s", err)
 		return false
 	}
 
@@ -288,7 +297,7 @@ func (gs *GameServer) HandlePacket(cp *ClientPacket) {
 		cp.Reply(gnet.NewPacket("Rloadmap", gs.Map))
 
 	default:
-		log.Printf("GameServer: HandlePacket: unknown packet type %s", cp.Tag)
+		glog.Infof("handlepacket: unknown packet type %s", cp.Tag)
 	}
 }
 
@@ -304,7 +313,7 @@ func Action_ItemPickup(gs *GameServer, cp *ClientPacket) {
 		// if same pos.. and gettable
 		if game.SamePos(o, p) && o.GetTag("gettable") {
 			// pickup item.
-			log.Printf("GameServer: Action_ItemPickup: %s picking up %s", p, o)
+			glog.Infof("Action_ItemPickup: %s picking up %s", p, o)
 			o.SetTag("visible", false)
 			o.SetTag("gettable", false)
 			o.SetPos(0, 0)
@@ -322,7 +331,7 @@ func Action_ItemPickup(gs *GameServer, cp *ClientPacket) {
 func Action_ItemDrop(gs *GameServer, cp *ClientPacket) {
 	p := cp.Client.Player
 	for sub := range p.GetSubObjects().Chan() {
-		log.Printf("GameServer: Action_ItemDrop: %s dropping %s", p, sub)
+		glog.Infof("Action_ItemDrop: %s dropping %s", p, sub)
 
 		// remove item from player
 		p.RemoveSubObject(sub)
@@ -408,16 +417,16 @@ func (gs *GameServer) HandleMovementPacket(cp *ClientPacket) {
 		// check if collision with Item and item name is flag
 		px, py := o.GetPos()
 		if px == newpos.X && py == newpos.Y {
-			collfn := luar.NewLuaObjectFromName(gs.Lua, "collide")
+			collfn := luar.NewLuaObjectFromName(gs.lua, "collide")
 			res, err := collfn.Call(p, o)
 			if err != nil {
-				log.Printf("GameServer: HandleMovementPacket: Lua error: %s", err)
+				glog.Infof("GameServer: HandleMovementPacket: Lua error: %s", err)
 				return
 			}
 
 			// only update position if collide returns true
 			if thebool, ok := res.(bool); !ok || !thebool {
-				log.Printf("GameServer: HandleMovementPacket: Lua collision failed")
+				glog.Infof("GameServer: HandleMovementPacket: Lua collision failed")
 				valid = false
 			} else {
 				// tell everyone that the colliders changed

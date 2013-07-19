@@ -2,8 +2,8 @@ package main
 
 import (
 	"fmt"
+	"github.com/golang/glog"
 	"github.com/mischief/goland/game/gnet"
-	"log"
 )
 
 type ClientPacket struct {
@@ -16,11 +16,13 @@ func (cp ClientPacket) String() string {
 }
 
 func (cp *ClientPacket) Reply(pk *gnet.Packet) {
-	log.Printf("ClientPacket: Reply: %s -> %s %s", cp.Packet, cp.Client.Con.RemoteAddr(), pk)
+	if glog.V(2) {
+		glog.Infof("reply: %s -> %s %s", cp.Packet, cp.Client.Con.RemoteAddr(), pk)
+	}
 
 	defer func() {
 		if err := recover(); err != nil {
-			log.Printf("ClientPacket: Reply: error: %s", err)
+			glog.Error("reply: error: ", err)
 		}
 	}()
 

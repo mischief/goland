@@ -1,4 +1,4 @@
-package main
+package graphics
 
 import (
 	"github.com/errnoh/termbox/panel"

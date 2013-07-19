@@ -2,9 +2,8 @@ package main
 
 import (
 	"flag"
-	"github.com/aarzilli/golua/lua"
+	"github.com/golang/glog"
 	"github.com/mischief/goland/game/gutil"
-	"log"
 	"math/rand"
 	"os"
 	"reflect"
@@ -15,76 +14,73 @@ import (
 
 var (
 	configfile = flag.String("config", "config.lua", "configuration file")
-
-	Lua *lua.State
 )
 
 func init() {
 	rand.Seed(time.Now().UTC().UnixNano())
 	runtime.GOMAXPROCS(runtime.NumCPU())
-
-	//	Lua = lua.NewState()
-	Lua = gutil.LuaInit()
 }
 
 func main() {
 	flag.Parse()
 
+	lua := gutil.LuaInit()
 	// load configuration
-	config, err := gutil.NewLuaConfig(Lua, *configfile)
+	config, err := gutil.NewLuaConfig(lua, *configfile)
 	if err != nil {
-		log.Fatalf("Error loading configuration file %s: %s", *configfile, err)
+		glog.Fatalf("error loading configuration file %s: %s", *configfile, err)
 	}
 
-	// setup logging
-	if lf, err := config.Get("logfile", reflect.String); err != nil {
-		log.Printf("main: Error reading logfile from config, using stdout: %s", err)
-	} else {
-		// open log file
-		file := lf.(string)
-		f, err := os.OpenFile(file, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
-		if err != nil {
-			log.Fatal(err)
+	/*
+		// setup logging
+		if lf, err := config.Get("logfile", reflect.String); err != nil {
+			glog.Infof("main: Error reading logfile from config, using stdout: %s", err)
+		} else {
+			// open log file
+			file := lf.(string)
+			f, err := os.OpenFile(file, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
+			if err != nil {
+				log.Fatal(err)
+			}
+			defer f.Close()
+			log.SetOutput(f)
 		}
-		defer f.Close()
-		log.SetOutput(f)
-	}
-
-	log.Print("main: Logging started")
+	*/
 
 	// log panics
-	defer func() {
-		if r := recover(); r != nil {
-			log.Printf("main: Recovered from %v", r)
-		}
-	}()
+	/*
+		defer func() {
+			if r := recover(); r != nil {
+				glog.Fatalf("recovered from %v", r)
+			}
+		}()*/
 
-	log.Printf("main: Config loaded from %s", *configfile)
+	glog.Infof("config loaded from %s", *configfile)
 
 	// dump config
 	for ce := range config.Chan() {
-		log.Printf("main: config: %s -> '%s'", ce.Key, ce.Value)
+		glog.Infof("config: %s -> '%s'", ce.Key, ce.Value)
 	}
 
 	// enable profiling
 	if cpuprof, err := config.Get("cpuprofile", reflect.String); err == nil {
 		fname := cpuprof.(string)
-		log.Printf("main: Starting profiling in file %s", fname)
+		glog.Infof("starting profiling in file %s", fname)
 		f, err := os.OpenFile(fname, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
 		if err != nil {
-			log.Printf("main: Can't open profiling file: %s", err)
+			glog.Infof("can't open profiling file: %s", err)
 		}
 
 		pprof.StartCPUProfile(f)
 		defer pprof.StopCPUProfile()
 	}
 
-	gs, err := NewGameServer(config, Lua)
+	gs, err := NewGameServer(config, lua)
 	if err != nil {
-		log.Println(err)
+		glog.Infoln(err)
 	} else {
 		gs.Run()
 	}
 
-	log.Println("main: Logging ended")
+	glog.Info("done")
 }

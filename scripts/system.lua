@@ -15,7 +15,7 @@ collide = coll.collide
 -- load our only map..
 map = require('map1')
 
-map.load()
+--map.load()
 
 -- get a debug shell after loading
 if gs.Debug() == true then

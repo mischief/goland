@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"github.com/errnoh/termbox/panel"
-	"github.com/mischief/goland/game/gnet"
 	"github.com/nsf/termbox-go"
 	"image"
 	"sync"
@@ -17,11 +16,16 @@ type ChatPanel struct {
 	m               sync.Mutex
 	Input           chan termbox.Event
 	g               *Game
-	term            *Terminal
+	//	term            *Terminal
+	nsys *ClientNetworkSystem
 }
 
-func NewChatPanel(g *Game, t *Terminal) *ChatPanel {
-	cb := &ChatPanel{Input: make(chan termbox.Event), g: g, term: t}
+func NewChatPanel(g *Game, nsys *ClientNetworkSystem) *ChatPanel {
+	cb := &ChatPanel{
+		Input: make(chan termbox.Event),
+		g:     g,
+		nsys:  nsys,
+	}
 
 	cb.HandleInput(termbox.Event{Type: termbox.EventResize})
 
@@ -58,15 +62,15 @@ func (c *ChatPanel) HandleInput(ev termbox.Event) {
 			case termbox.KeyEnter:
 				// input confirmed, send it
 				if c.Len() > 0 {
-					c.g.SendPacket(gnet.NewPacket("Tchat", c.String()))
+					c.nsys.SendPacket("Tchat", c.String())
 					c.Reset()
-					c.term.SetInputHandler(nil)
+					//					c.term.SetInputHandler(nil)
 
 				}
 			case termbox.KeyEsc:
 				// input cancelled
 				c.Reset()
-				c.term.SetInputHandler(nil)
+				//				c.term.SetInputHandler(nil)
 			}
 		}
 	case termbox.EventResize:

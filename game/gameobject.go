@@ -78,7 +78,7 @@ type GameObject struct {
 	Tags       map[string]bool // object tags
 	SubObjects *GameObjectMap  // objects associated with this one
 
-  m sync.Mutex // lock, ew
+	m sync.Mutex // lock, ew
 }
 
 func NewGameObject(name string) Object {
@@ -95,8 +95,8 @@ func NewGameObject(name string) Object {
 }
 
 func (gob GameObject) String() string {
-  gob.m.Lock()
-  defer gob.m.Unlock()
+	gob.m.Lock()
+	defer gob.m.Unlock()
 
 	var buf bytes.Buffer
 
@@ -109,36 +109,36 @@ func (gob GameObject) String() string {
 }
 
 func (gob *GameObject) SetID(id int) {
-  gob.m.Lock()
-  defer gob.m.Unlock()
+	gob.m.Lock()
+	defer gob.m.Unlock()
 
 	gob.ID = id
 }
 
 func (gob *GameObject) GetID() int {
-  gob.m.Lock()
-  defer gob.m.Unlock()
+	gob.m.Lock()
+	defer gob.m.Unlock()
 
 	return gob.ID
 }
 
 func (gob *GameObject) SetName(name string) {
-  gob.m.Lock()
-  defer gob.m.Unlock()
+	gob.m.Lock()
+	defer gob.m.Unlock()
 
 	gob.Name = name
 }
 
 func (gob *GameObject) GetName() string {
-  gob.m.Lock()
-  defer gob.m.Unlock()
+	gob.m.Lock()
+	defer gob.m.Unlock()
 
 	return gob.Name
 }
 
 func (gob *GameObject) SetPos(x, y int) bool {
-  gob.m.Lock()
-  defer gob.m.Unlock()
+	gob.m.Lock()
+	defer gob.m.Unlock()
 
 	gob.Pos.X = x
 	gob.Pos.Y = y
@@ -146,29 +146,29 @@ func (gob *GameObject) SetPos(x, y int) bool {
 }
 
 func (gob *GameObject) GetPos() (x, y int) {
-  gob.m.Lock()
-  defer gob.m.Unlock()
+	gob.m.Lock()
+	defer gob.m.Unlock()
 
 	return gob.Pos.X, gob.Pos.Y
 }
 
 func (gob *GameObject) SetGlyph(glyph termbox.Cell) {
-  gob.m.Lock()
-  defer gob.m.Unlock()
+	gob.m.Lock()
+	defer gob.m.Unlock()
 
 	gob.Glyph = glyph
 }
 
 func (gob *GameObject) GetGlyph() termbox.Cell {
-  gob.m.Lock()
-  defer gob.m.Unlock()
+	gob.m.Lock()
+	defer gob.m.Unlock()
 
 	return gob.Glyph
 }
 
 func (gob *GameObject) SetTag(tag string, val bool) (old bool) {
-  gob.m.Lock()
-  defer gob.m.Unlock()
+	gob.m.Lock()
+	defer gob.m.Unlock()
 
 	old = gob.Tags[tag]
 	gob.Tags[tag] = val
@@ -176,15 +176,15 @@ func (gob *GameObject) SetTag(tag string, val bool) (old bool) {
 }
 
 func (gob *GameObject) GetTag(tag string) bool {
-  gob.m.Lock()
-  defer gob.m.Unlock()
+	gob.m.Lock()
+	defer gob.m.Unlock()
 
 	return gob.Tags[tag]
 }
 
 func (gob *GameObject) GetSubObjects() *GameObjectMap {
-  gob.m.Lock()
-  defer gob.m.Unlock()
+	gob.m.Lock()
+	defer gob.m.Unlock()
 
 	return gob.SubObjects
 }

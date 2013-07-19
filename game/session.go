@@ -7,7 +7,7 @@ import (
 
 type Session interface {
 	SendPacket(pk *gnet.Packet)
-	GetPlayer() *Player
+	//	GetPlayer() *Player
 	ID() uuid.UUID
 	Username() string
 }
