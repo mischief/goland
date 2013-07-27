@@ -1,6 +1,4 @@
 config = {
-  -- map file
-  map         = "map",
   scriptpath  = "../scripts/?.lua",
 
   -- listen dialstring
@@ -9,8 +7,8 @@ config = {
   -- logging & debugging
   --logfile     = "server.log",
 
-  --debug       = "false",
-  cpuprofile  = "server.profile",
+  debug       = "false",
+  --cpuprofile  = "server.profile",
 }
 
 return config

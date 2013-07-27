@@ -93,11 +93,13 @@ end
 fns = {}
 
 fns.load = function()
-  gs.LoadMap('../server/map')
-  items.load(flags)
-  items.load(blocks)
+  items.new('bob', 1, 1)
+  --gs.LoadMap('../server/map')
+  --items.load(flags)
+  --items.load(blocks)
 
   -- load the score point
+  --[[
   for _, v in pairs(score) do
     sp = object.New(v[1])
     sp.SetPos(v[2], v[3])
@@ -105,6 +107,7 @@ fns.load = function()
     sp.SetGlyph(util.NewGlyph(v[4], v[5], v[6]))
     gs.AddObject(sp)
   end
+    --]]
 end
 
 return fns

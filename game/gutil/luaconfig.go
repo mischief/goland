@@ -50,6 +50,20 @@ func NewLuaConfig(lua *lua.State, file string) (*LuaConfig, error) {
 // Get will accept keys like "table.subtable.key", and will walk tables until it finds
 // the last element in the key, or abort on error.
 func (lc *LuaConfig) Get(key string, expected reflect.Kind) (res interface{}, err error) {
+	val, err := lc.RawGet(key)
+	if err != nil {
+		return nil, err
+	}
+
+	kind := reflect.TypeOf(val).Kind()
+	if kind != expected {
+		return nil, fmt.Errorf("%s: key %s is type %s, expected %s", key, lc.file, kind, expected)
+	}
+
+	return val, nil
+}
+
+func (lc *LuaConfig) RawGet(key string) (res interface{}, err error) {
 	lc.m.Lock()
 	defer lc.m.Unlock()
 
@@ -60,20 +74,15 @@ func (lc *LuaConfig) Get(key string, expected reflect.Kind) (res interface{}, er
 	for i, p := range parts {
 		val, ok := m[p]
 		if !ok {
-			return nil, fmt.Errorf("LuaConfig: %s: no key named %s", lc.file, p)
+			return nil, fmt.Errorf("%s: no key named %s", lc.file, p)
 		} else {
-			kind := reflect.TypeOf(val).Kind()
 			if i+1 == len(parts) {
-				if kind != expected {
-					return nil, fmt.Errorf("LuaConfig: %s: key %s is type %s, expected %s", lc.file, kind, expected)
-				} else {
-					return val, nil
-				}
+				return val, nil
 			} else {
 				if newm, ok := val.(map[string]interface{}); ok {
 					m = newm
 				} else {
-					return nil, fmt.Errorf("LuaConfig: %s: key %s is not a table", lc.file, p)
+					return nil, fmt.Errorf("%s: key %s is not a table", lc.file, p)
 				}
 			}
 		}

@@ -23,8 +23,12 @@ func init() {
 
 func main() {
 	flag.Parse()
+	defer glog.Flush()
 
 	lua := gutil.LuaInit()
+	if lua == nil {
+		glog.Fatal("error initializing lua state")
+	}
 	// load configuration
 	config, err := gutil.NewLuaConfig(lua, *configfile)
 	if err != nil {
@@ -57,9 +61,11 @@ func main() {
 
 	glog.Infof("config loaded from %s", *configfile)
 
-	// dump config
-	for ce := range config.Chan() {
-		glog.Infof("config: %s -> '%s'", ce.Key, ce.Value)
+	if glog.V(2) {
+		// dump config
+		for ce := range config.Chan() {
+			glog.Infof("config: %s -> '%s'", ce.Key, ce.Value)
+		}
 	}
 
 	// enable profiling

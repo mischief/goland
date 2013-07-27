@@ -34,6 +34,11 @@ func init() {
 	}()
 }
 
+// Return a unique ID
+func IDGen() int {
+	return <-idchan
+}
+
 // TODO: remove need for this when drawing terrain with camera.Draw
 type Renderable interface {
 	// Draw this object on the buffer at pos

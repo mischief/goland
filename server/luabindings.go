@@ -7,6 +7,7 @@ import (
 	"github.com/nsf/termbox-go"
 	"github.com/stevedonovan/luar"
 	"unicode/utf8"
+  "image"
 )
 
 // make a new GameObject
@@ -31,6 +32,9 @@ func NewGlyph(ch string, fg string, bg string) termbox.Cell {
 
 var LuaUtilLib luar.Map = map[string]interface{}{
 	"NewGlyph": NewGlyph,
+  "NewStaticSprite": game.NewStaticSprite,
+  "IDGen": game.IDGen,
+  "Pt": image.Pt,
 }
 
 func Lua_OpenObjectLib(L *lua.State) bool {

@@ -4,223 +4,171 @@ package game
 import (
 	"bufio"
 	"encoding/gob"
-	"fmt"
 	"github.com/nsf/termbox-go"
-	"github.com/nsf/tulib"
 	"image"
-	"log"
-	"math/rand"
 	"os"
+	"github.com/golang/glog"
 )
 
-type TerrainType uint32
-type Action int
+func init() {
+	gob.Register(&Tile{})
+	gob.Register(&TerrainChunk{})
+}
 
-func (a Action) String() string {
-	return fmt.Sprintf("%s", DirTable[a])
+type Tile struct {
+	Name     string
+  Passable bool
+	Cell     termbox.Cell
+}
+
+func NewTile(name string, passable bool, cell termbox.Cell) *Tile {
+	return &Tile{name, passable, cell}
+}
+
+func (t Tile) String() string {
+	return t.Name
+}
+
+var tiles = []*Tile{
+	&Tile{"invalid", false, termbox.Cell{Ch: 'X', Fg: termbox.ColorRed}},
+	&Tile{"empty", true, termbox.Cell{Ch: ' '}},
+	&Tile{"wall", false, termbox.Cell{Ch: '#', Fg: termbox.ColorDefault, Bg: termbox.ColorBlack | termbox.AttrUnderline | termbox.AttrBold}},
+	&Tile{"grass", true, termbox.Cell{Ch: '.', Fg: termbox.ColorGreen}},
+}
+
+func TileByName(n string) *Tile {
+	for _, t := range tiles {
+		if t.Name == n {
+			return t
+		}
+	}
+
+	return tiles[0]
+}
+
+func TileByCh(r rune) *Tile {
+	for _, t := range tiles {
+		if t.Cell.Ch == r {
+			return t
+		}
+	}
+
+	return tiles[0]
 }
 
 const (
 	MAP_WIDTH  = 256
 	MAP_HEIGHT = 256
-
-	T_EMPTY  TerrainType = iota
-	T_WALL               // can't pass/see through wall
-	T_GROUND             // passable/visible
-	T_UNIT
-
-	DIR_UP Action = iota // player movement instructions
-	DIR_DOWN
-	DIR_LEFT
-	DIR_RIGHT
-
-	ACTION_ITEM_PICKUP
-	ACTION_ITEM_DROP
-	ACTION_ITEM_LIST_INVENTORY
 )
 
-var (
-	DirTable = map[Action]image.Point{
-		DIR_UP:    image.Point{0, -1},
-		DIR_DOWN:  image.Point{0, 1},
-		DIR_LEFT:  image.Point{-1, 0},
-		DIR_RIGHT: image.Point{1, 0},
-	}
-
-	GLYPH_EMPTY  = termbox.Cell{Ch: ' '}
-	GLYPH_WALL   = termbox.Cell{Ch: '#', Fg: termbox.ColorDefault, Bg: termbox.ColorBlack | termbox.AttrUnderline | termbox.AttrBold}
-	GLYPH_GROUND = termbox.Cell{Ch: '.', Fg: termbox.ColorGreen}
-	GLYPH_FLAG   = termbox.Cell{Ch: '%', Fg: termbox.ColorCyan}
-	GLYPH_ITEM   = termbox.Cell{Ch: '?', Fg: termbox.ColorCyan}
-	GLYPH_HUMAN  = termbox.Cell{Ch: '@'}
-
-	// convert a rune to a terrain square
-	glyphTable = map[rune]*Terrain{
-		' ': &Terrain{GLYPH_EMPTY, T_EMPTY},
-		'#': &Terrain{GLYPH_WALL, T_WALL},
-		'.': &Terrain{GLYPH_GROUND, T_GROUND},
-		'@': &Terrain{GLYPH_HUMAN, T_UNIT},
-	}
-)
-
-func init() {
-	gob.Register(DIR_UP)
-	gob.Register(&MapChunk{})
-	gob.Register(&Terrain{})
-	gob.Register(T_EMPTY)
+// Manager for terrain data
+type TerrainSystem struct {
+  scene *Scene
+  terrains map[string] *TerrainChunk
 }
 
-func (tt *TerrainType) String() string {
-	switch *tt {
-	case T_EMPTY:
-		return "empty"
-	case T_WALL:
-		return "wall"
-	case T_GROUND:
-		return "ground"
-	case T_UNIT:
-		return "unit"
-	}
+func NewTerrainSystem(s *Scene) (*TerrainSystem, error) {
+  sys := &TerrainSystem{
+    terrains: make(map[string]*TerrainChunk),
+  }
 
-	return "unknown"
+  return sys, nil
 }
 
-func GlyphToTerrain(g rune) (t *Terrain, ok bool) {
-	t, ok = glyphTable[g]
-	if !ok {
-		t = glyphTable[' ']
-	}
-	return
+// Load a terrain file into the manager
+func (tm *TerrainSystem) LoadFile(mapname, filename string) error {
+  if glog.V(2) {
+    glog.Infof("loading terrainchunk %s from %s", mapname, filename)
+  }
+
+  tc := NewTerrainChunk()
+
+  if err := tc.Load(filename); err != nil {
+    if glog.V(1) {
+      glog.Infof("loading terrainchunk %s failed: %s", mapname, err)
+    }
+    return err
+  } else {
+    tm.terrains[mapname] = tc
+  }
+
+  if glog.V(2) {
+    glog.Infof("loading terrainchunk %s successful", mapname)
+  }
+
+  return nil
 }
 
-type Terrain struct {
-	//*GameObject
-	Glyph termbox.Cell
-	Type  TerrainType
+// Get a terrain by name
+func (tm *TerrainSystem) Get(mapname string) (t *TerrainChunk, ok bool) {
+  t, ok = tm.terrains[mapname]
+  return
 }
 
-func (t Terrain) String() string {
-	return fmt.Sprintf("(%c %s)", t.Glyph.Ch, t.Type)
+// MAP_WIDTH*MAP_HEIGHT cells for terrain
+type TerrainChunk struct {
+  Cells [][]*Tile
 }
 
-func (t *Terrain) Draw(b *tulib.Buffer, pt image.Point) {
-	b.Set(pt.X, pt.Y, t.Glyph)
+// Allocate a new TerrainChunk, setting all cells to the invalid cell
+func NewTerrainChunk() *TerrainChunk {
+  tc := &TerrainChunk{}
+
+  tc.Cells = make([][]*Tile, MAP_WIDTH)
+  for col := range tc.Cells {
+    tc.Cells[col] = make([]*Tile, MAP_HEIGHT)
+  }
+
+  for x := 0; x < MAP_WIDTH; x++ {
+    for y := 0; y < MAP_HEIGHT; y++ {
+      tc.Cells[x][y] = tiles[0]
+    }
+  }
+
+  return tc
 }
 
-func (t *Terrain) IsEmpty() bool {
-	return t.Type == T_EMPTY
+// Load this TerrainChunk's data from a file
+func (tc *TerrainChunk) Load(file string) (err error) {
+  var f *os.File
+  if f, err = os.Open(file); err != nil {
+    return
+  } else {
+    defer f.Close()
+  }
+
+  r := bufio.NewReader(f)
+
+  for y := 0; y < MAP_HEIGHT; y++ {
+    var str string
+    str, err = r.ReadString('\n')
+    if err != nil {
+      return
+    }
+
+    for x := 0; x < MAP_WIDTH; x++ {
+      tc.Cells[x][y] = TileByCh(rune(str[x]))
+    }
+  }
+
+  return
 }
 
-func (t *Terrain) IsWall() bool {
-	return t.Type == T_WALL
+// GetAt returns the tile at the given coordinate in the TerrainChunk.
+func (tc *TerrainChunk) GetAt(pt image.Point) (t *Tile, ok bool) {
+  if pt.X < 0 || pt.X > 256 || pt.Y < 0 || pt.Y > 256 {
+    return tiles[0], false
+  }
+
+  return tc.Cells[pt.X][pt.Y], true
 }
 
-func (t *Terrain) IsGround() bool {
-	return t.Type == T_GROUND
+// Blocked returns true if the given coordinate in the TerrainChunk is not passable.
+func (tc *TerrainChunk) Blocked(pt image.Point) bool {
+  if pt.X < 0 || pt.X > 256 || pt.Y < 0 || pt.Y > 256 {
+    return true
+  }
+
+  return !tc.Cells[pt.X][pt.Y].Passable
 }
 
-type MapChunk struct {
-	Size        image.Point
-	Rect        image.Rectangle
-	Locations   [][]*Terrain  // land features
-	GameObjects []*GameObject // active game objects
-	//Players     []*Player     // active players
-}
-
-func (mc *MapChunk) String() string {
-	return fmt.Sprintf("(%s %s objs %d players %d)", mc.Size, mc.Rect, len(mc.GameObjects))
-}
-
-func NewMapChunk() *MapChunk {
-	ch := MapChunk{Size: image.Pt(MAP_WIDTH, MAP_HEIGHT)}
-	ch.Rect = image.Rect(0, 0, MAP_WIDTH, MAP_HEIGHT)
-
-	ch.Locations = make([][]*Terrain, MAP_WIDTH)
-	for row := range ch.Locations {
-		ch.Locations[row] = make([]*Terrain, MAP_HEIGHT)
-	}
-
-	for x := 0; x < MAP_WIDTH; x++ {
-		for y := 0; y < MAP_HEIGHT; y++ {
-			g, _ := GlyphToTerrain('.')
-			ch.Locations[x][y] = g
-		}
-	}
-
-	return &ch
-}
-
-// return true if the map chunk has a cell with coordinates v.X, v.Y
-func (mc *MapChunk) HasCell(pt image.Point) bool {
-	return pt.In(mc.Rect)
-}
-
-// get terrain at v. returns nil, false if it is not present
-func (mc *MapChunk) GetTerrain(pt image.Point) (t *Terrain, ok bool) {
-	if ok = mc.HasCell(pt); !ok {
-		return
-	}
-	return mc.Locations[pt.X][pt.Y], true
-}
-
-func (mc *MapChunk) CheckCollision(gob *GameObject, pos image.Point) bool {
-	t, ok := mc.GetTerrain(pos)
-	if ok {
-		return !t.IsWall()
-	}
-
-	return false
-}
-
-// Generates an array of (x,y) tuples of open
-// spots on the map, called open, and selects
-// random(1, len(open))
-func (mc *MapChunk) RandCell() image.Point {
-	var open []image.Point
-
-	for x := 0; x < MAP_WIDTH; x++ {
-		for y := 0; y < MAP_HEIGHT; y++ {
-			if !mc.Locations[x][y].IsWall() {
-				open = append(open, image.Pt(x, y))
-			}
-		}
-	}
-
-	// choose random location in range or len(open)
-	i := rand.Intn(len(open))
-	return open[i]
-}
-
-func MapChunkFromFile(mapfile string) *MapChunk {
-	mfh, err := os.Open(mapfile)
-	if err != nil {
-		log.Printf("Error loading map chunk file '%s': %s", mapfile, err)
-		return nil
-	}
-
-	defer mfh.Close()
-
-	r := bufio.NewReader(mfh)
-
-	mc := NewMapChunk()
-
-	for y := 0; y < MAP_HEIGHT; y++ {
-		str, err := r.ReadString('\n')
-		if err != nil {
-			log.Printf("map read error: %s", err)
-			return nil
-		}
-
-		for x := 0; x < MAP_WIDTH; x++ {
-			g, ok := GlyphToTerrain(rune(str[x]))
-			if !ok {
-				log.Printf("invalid map tile '%c' at %s:%d:%d", str[x], mapfile, y, x)
-				return nil
-			}
-
-			mc.Locations[x][y] = g
-		}
-	}
-
-	return mc
-}

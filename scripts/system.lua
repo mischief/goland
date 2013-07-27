@@ -17,6 +17,9 @@ map = require('map1')
 
 --map.load()
 
+-- etc
+sys.tsys.LoadFile('map1', '../server/map')
+
 -- get a debug shell after loading
 if gs.Debug() == true then
   debug.debug()

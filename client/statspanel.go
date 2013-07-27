@@ -2,9 +2,8 @@ package main
 
 import (
 	"fmt"
-	"github.com/errnoh/termbox/panel"
+	"github.com/mischief/goland/client/graphics"
 	"github.com/nsf/termbox-go"
-	"image"
 	"runtime"
 	"time"
 )
@@ -14,54 +13,75 @@ const (
 )
 
 type StatsPanel struct {
-	*panel.Buffered
+	do chan func(*StatsPanel)
+	*graphics.BasePanel
 
+	g *Game
+
+	// displayed data
+	w, h     int // terminal size
 	samples  [64]float64
 	current  int
 	memstats runtime.MemStats
+	numgr    int
 
 	fps float64
 }
 
-func NewStatsPanel() *StatsPanel {
-	sp := &StatsPanel{}
+func NewStatsPanel(g *Game) *StatsPanel {
+	sp := &StatsPanel{
+		do: make(chan func(*StatsPanel), 1),
+    BasePanel: graphics.NewBasePanel(g.rsys),
+		g:  g,
+	}
 
-	sp.HandleInput(termbox.Event{Type: termbox.EventResize})
+	g.em.On("resize", func(i ...interface{}) {
+		ev := i[0].(termbox.Event)
+		sp.do <- func(sp *StatsPanel) {
+      sp.w = ev.Width
+      sp.h = ev.Height
+			sp.Resize(ev.Width, ev.Height)
+		}
+	})
 
 	return sp
 }
 
-func (s StatsPanel) String() string {
-	return fmt.Sprintf("%5.2f FPS %5.2f MB %d GC %d GR", s.fps, float64(s.memstats.HeapAlloc)/1000000.0, s.memstats.NumGC, runtime.NumGoroutine())
+func (sp StatsPanel) String() string {
+	return fmt.Sprintf("TERM: %dx%d SZ %5.2f FPS %5.2f MB %d GC %d GR", sp.h, sp.w, sp.fps, float64(sp.memstats.HeapAlloc)/1000000.0, sp.memstats.NumGC, runtime.NumGoroutine())
 }
 
-func (s *StatsPanel) Update(delta time.Duration) {
-	runtime.ReadMemStats(&s.memstats)
+func (sp *StatsPanel) Update(delta time.Duration) {
+	sp.numgr = runtime.NumGoroutine()
+	runtime.ReadMemStats(&sp.memstats)
 
-	s.samples[s.current%FPS_SAMPLES] = 1.0 / delta.Seconds()
-	s.current++
+	sp.samples[sp.current%FPS_SAMPLES] = 1.0 / delta.Seconds()
+	sp.current++
 
 	for i := 0; i < FPS_SAMPLES; i++ {
-		s.fps += s.samples[i]
+		sp.fps += sp.samples[i]
 	}
 
-	s.fps /= FPS_SAMPLES
+	sp.fps /= FPS_SAMPLES
+
+	for {
+		select {
+		case f := <-sp.do:
+			f(sp)
+		default:
+			return
+		}
+	}
 }
 
-func (s *StatsPanel) HandleInput(ev termbox.Event) {
-	if ev.Type == termbox.EventResize {
-		w, _ := termbox.Size()
-		r := image.Rect(1, 1, w-1, 2)
-		s.Buffered = panel.NewBuffered(r, termbox.Cell{'s', termbox.ColorGreen, 0})
-	}
-}
+func (sp *StatsPanel) Draw() {
+	if sp.Buffered != nil {
 
-func (s *StatsPanel) Draw() {
-	w, h := termbox.Size()
-	str := fmt.Sprintf("Terminal: %d,%d SZ %s", w, h, s)
-	for i, r := range str {
-		s.SetCell(i, 0, r, termbox.ColorBlue, termbox.ColorDefault)
+		str := fmt.Sprintf("%s", sp)
+		for i, r := range str {
+			sp.SetCell(i, 0, r, termbox.ColorBlue, termbox.ColorDefault)
+		}
+
+		sp.Buffered.Draw()
 	}
-	//io.WriteString(s, s.String() + fmt.Sprintf(" %s", s.Bounds()))
-	s.Buffered.Draw()
 }

@@ -2,17 +2,15 @@ package graphics
 
 import (
 	"container/list"
-	"errors"
 	"fmt"
+	"github.com/chuckpreslar/emission"
 	"github.com/errnoh/termbox/panel"
+	"github.com/golang/glog"
 	"github.com/mischief/goland/game"
-	"github.com/mischief/goland/game/gutil"
 	"github.com/nsf/termbox-go"
 	"github.com/nsf/tulib"
-	"runtime"
 	"sync/atomic"
 	"time"
-  "github.com/golang/glog"
 )
 
 type KeyHandler func(ev termbox.Event)
@@ -29,41 +27,48 @@ type RenderSystem struct {
 	// scene containing actors
 	scene *game.Scene
 
-	// chan of input events from termbox
-	termchan chan termbox.Event
+	// event emitter
+	emitter *emission.Emitter
 
 	// display panels
-  mainpanel *panel.Buffered
-	panels map[string]panel.Panel
+	mainpanel *panel.Buffered
+	panels    map[string]GamePanel
 
-	// Stack of input panels
-	inputstack *list.List
+	// Stack of 'active' panels
+	activestack *list.List
 
 	// key bindings
 	runehandlers map[rune]KeyHandler
 	keyhandlers  map[termbox.Key]KeyHandler
+
+	// current terrain. TODO: fix this
+	Terrain *game.TerrainChunk
 }
 
-func NewRenderSystem(s *game.Scene) (*RenderSystem, error) {
+func NewRenderSystem(s *game.Scene, em *emission.Emitter) (*RenderSystem, error) {
 	sys := &RenderSystem{
-		do:           make(chan func(*RenderSystem), 5),
+		do:           make(chan func(*RenderSystem), 10),
 		scene:        s,
-		termchan:     make(chan termbox.Event),
-    mainpanel:    panel.MainScreen(),
-    panels:       make(map[string]panel.Panel),
-		inputstack:   list.New(),
+		emitter:      em,
+		mainpanel:    panel.MainScreen(),
+		panels:       make(map[string]GamePanel),
+		activestack:  list.New(),
 		runehandlers: make(map[rune]KeyHandler),
 		keyhandlers:  make(map[termbox.Key]KeyHandler),
 	}
 
-  sys.scene.Wg.Add(1)
-	//game.StartSystem(sys, true)
-  if err := sys.Start(true); err != nil {
-    return nil, err
-  }
+	if err := game.StartSystem(sys, true); err != nil {
+		return nil, err
+	}
+
+	sys.scene.AddSystem(sys)
 
 	sys.Syn()
 	return sys, nil
+}
+
+func (sys RenderSystem) String() string {
+	return "render"
 }
 
 func (sys *RenderSystem) DoOne() error {
@@ -111,13 +116,42 @@ func (sys *RenderSystem) Frequency() time.Duration {
 }
 
 func (sys *RenderSystem) Setup() error {
-	glog.Info("setup: starting")
+	glog.Info("setup: begin")
 
 	if err := termbox.Init(); err != nil {
 		return fmt.Errorf("setup: termbox: %s", err)
 	}
 
 	termbox.HideCursor()
+
+	go func() {
+		for sys.IsRunning() {
+			ev := termbox.PollEvent()
+			if ev.Type == termbox.EventError {
+				glog.Infof("termbox poller: error: %s", ev.Err)
+			} else {
+				switch ev.Type {
+				case termbox.EventKey:
+					sys.emitter.Emit("key", ev)
+				case termbox.EventResize:
+          termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
+					sys.emitter.Emit("resize", ev)
+				}
+			}
+		}
+	}()
+
+	// TODO: remove this and make better keyevent to game event translator
+	sys.emitter.On("key", func(i ...interface{}) {
+		ev := i[0].(termbox.Event)
+		if glog.V(2) {
+			glog.Infof("key event: %s", tulib.KeyToString(ev.Key, ev.Ch, ev.Mod))
+		}
+
+		sys.do <- func(sys *RenderSystem) {
+			sys.handleInput(ev)
+		}
+	})
 
 	glog.Info("setup: complete")
 	return nil
@@ -126,111 +160,47 @@ func (sys *RenderSystem) Setup() error {
 func (sys *RenderSystem) Tick(delta time.Duration) {
 	d := delta
 	sys.do <- func(sys *RenderSystem) {
-		sys.updateGraphics(d)
+		sys.Update(d)
 	}
 }
 
 func (sys *RenderSystem) TearDown() {
 	termbox.Close()
 	glog.Info("teardown: complete")
-  sys.scene.Wg.Done()
+	sys.scene.RemoveSystem(sys)
 }
 
-func (sys *RenderSystem) Start(lockOsThread bool) (err error) {
-	if sys.IsRunning() {
-		return errors.New("system already started")
-	} else {
-
-		go func() {
-			if lockOsThread {
-				runtime.LockOSThread()
-			}
-
-			if e := sys.Setup(); e != nil {
-				err = e
-				return
-			}
-
-			sys.Running(true)
-
-			for sys.IsRunning() {
-				sys.DoOne()
-			}
-
-      sys.TearDown()
-		}()
-
-		sys.Syn()
-
-		// graphics
-		gticker := time.Tick(sys.Frequency())
-		gtimer := game.NewDeltaTimer()
-
-		go func() {
-			for sys.IsRunning() {
-				<-gticker
-				sys.Tick(gtimer.DeltaTime())
-			}
-		}()
-
-		// input
-		iticker := time.Tick(sys.Frequency())
-		itimer := game.NewDeltaTimer()
-
-		// goroutine reading directly from termbox
-		go func() {
-			for sys.IsRunning() {
-				ev := termbox.PollEvent()
-				if ev.Type == termbox.EventError {
-					glog.Infof("termbox poller: error: %s", ev.Err)
-					close(sys.termchan)
-				} else {
-					sys.termchan <- ev
-				}
-			}
-		}()
-
-		// goroutine regularly reading event queue and
-		// sending messages to the rendersystem
-		go func() {
-			for sys.IsRunning() {
-				<-iticker
-				sys.do <- func(sys *RenderSystem) {
-					sys.updateInput(itimer.DeltaTime())
-				}
-			}
-		}()
-
+// Draw stuff here
+func (sys *RenderSystem) Update(delta time.Duration) {
+	if glog.V(3) {
+		glog.Infof("rendersystem: updating %v", delta)
 	}
 
-	return nil
-}
+	sys.mainpanel.Clear()
 
-// TODO: Draw stuff here
-func (sys *RenderSystem) updateGraphics(delta time.Duration) {
-	//glog.Infof("rendersystem: updating %v", delta)
+	for _, p := range sys.panels {
+		p.Update(delta)
 
-  sys.mainpanel.Clear()
+		if v, ok := p.(panel.Drawer); ok {
+			v.Draw()
+		}
+	}
 
-  for _, p := range sys.panels {
-    if v, ok := p.(InputHandler); ok {
-      v.HandleInput(termbox.Event{Type: termbox.EventResize})
-    }
+	// draw the 'active' panels over everything else
+	for act := sys.activestack.Back(); act != nil; act = act.Prev() {
+		if v, ok := act.Value.(panel.Drawer); ok {
+			v.Draw()
+		}
+	}
 
-    if v, ok := p.(gutil.Updater); ok {
-      v.Update(delta)
-    }
+	// update camera positions
+	for _, actor := range sys.scene.Find(game.PropPos, game.PropCamera) {
+		pos := actor.Get(game.PropPos).(*game.Pos)
+		cam := actor.Get(game.PropCamera).(*Camera)
+		cam.SetCenter(<-pos.Get())
+	}
 
-    if v, ok := p.(panel.Drawer); ok {
-      v.Draw()
-    }
-  }
-
-  for _, actor := range sys.scene.Find(game.PropPos, game.PropCamera) {
-    pos := actor.Get(game.PropPos).(*game.Pos)
-    cam := actor.Get(game.PropCamera).(*Camera)
-    cam.SetCenter(<-pos.Get())
-  }
+	// drawing game stuff is handled by viewpanel for now
 	/*
 		for _, actor := range sys.scene.Find(game.PropPos, game.PropStaticSprite) {
 			p := actor.Get(game.PropPos).(*game.Pos)
@@ -238,75 +208,70 @@ func (sys *RenderSystem) updateGraphics(delta time.Duration) {
 		}
 	*/
 
-  termbox.Flush()
-
+	termbox.Flush()
 }
 
 // Read all pending input and send off to handlers
-func (sys *RenderSystem) updateInput(delta time.Duration) {
-stop:
-	for {
-		select {
-		case ev := <-sys.termchan:
-			glog.Infof("termbox event: %s", tulib.KeyToString(ev.Key, ev.Ch, ev.Mod))
-			switch ev.Type {
+func (sys *RenderSystem) handleInput(ev termbox.Event) {
+	if sys.activestack.Len() > 0 {
+		e := sys.activestack.Front()
+		ih := e.Value.(InputHandler)
+		ih.HandleInput(ev)
+	} else if ev.Ch != 0 {
 
-			case termbox.EventKey:
+		if h, ok := sys.runehandlers[ev.Ch]; ok {
+			//sys.do <- func(sys *RenderSystem) {
+			h(ev)
+			//}
+		}
 
-				sys.do <- func(sys *RenderSystem) {
+	} else {
 
-					if ev.Ch != 0 {
-
-						if h, ok := sys.runehandlers[ev.Ch]; ok {
-							sys.do <- func(sys *RenderSystem) {
-								h(ev)
-							}
-						}
-
-					} else {
-
-						if h, ok := sys.keyhandlers[ev.Key]; ok {
-							sys.do <- func(sys *RenderSystem) {
-								h(ev)
-							}
-						}
-
-					}
-				}
-
-			case termbox.EventResize:
-				// TODO: fix
-			}
-
-		default:
-			break stop
+		if h, ok := sys.keyhandlers[ev.Key]; ok {
+			//sys.do <- func(sys *RenderSystem) {
+			h(ev)
+			//}
 		}
 	}
+
 }
 
 // Push an input handler on the stack.
 // Recieves input until it is popped.
-func (sys *RenderSystem) PushInputHandler(i interface{}) {
+func (sys *RenderSystem) PushActivePanel(p GamePanel) {
 	sys.do <- func(sys *RenderSystem) {
-		sys.inputstack.PushFront(i)
+		sys.activestack.PushFront(p)
+
+		if a, ok := p.(Activator); ok {
+			a.Activate()
+		}
 	}
 }
 
-func (sys *RenderSystem) PushPanelInputName(n string) {
-  sys.do <- func(sys *RenderSystem) {
-    if p, ok := sys.panels[n]; ok {
-      sys.inputstack.PushFront(p)
-    }
-  }
+// Push an input handler by panel name.
+// Only used for chatpanel for now.
+func (sys *RenderSystem) PushActivePanelName(n string) {
+	sys.do <- func(sys *RenderSystem) {
+		if p, ok := sys.panels[n]; ok {
+      glog.Infof("switching to panel %s", n)
+			sys.activestack.PushFront(p)
+			if a, ok := p.(Activator); ok {
+				a.Activate()
+			}
+		}
+	}
 }
 
 // Pop one input handler off the stack
-// Won't pop if len < 1
+// Will only pop if len > 0
 func (sys *RenderSystem) PopInputHandler() {
 	sys.do <- func(sys *RenderSystem) {
-		if sys.inputstack.Len() > 1 {
-			e := sys.inputstack.Front()
-			sys.inputstack.Remove(e)
+		if sys.activestack.Len() > 0 {
+			e := sys.activestack.Front()
+			sys.activestack.Remove(e)
+			if a, ok := e.Value.(Activator); ok {
+				a.Deactivate()
+			}
 		}
 	}
 }
@@ -326,8 +291,14 @@ func (sys *RenderSystem) HandleKey(k termbox.Key, h KeyHandler) {
 }
 
 // Add a panel to the render system
-func (sys *RenderSystem) AddPanel(n string, p panel.Panel) {
-  sys.do <- func(sys *RenderSystem) {
-    sys.panels[n] = p
-  }
+func (sys *RenderSystem) AddPanel(n string, p GamePanel) {
+	sys.do <- func(sys *RenderSystem) {
+		sys.panels[n] = p
+	}
+}
+
+func (sys *RenderSystem) SetTerrainChunk(tc *game.TerrainChunk) {
+	sys.do <- func(sys *RenderSystem) {
+		sys.Terrain = tc
+	}
 }

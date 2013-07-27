@@ -13,6 +13,7 @@ import (
 type ClientNetworkSystem struct {
 	do      chan func(*ClientNetworkSystem)
 	running int32
+	g       *Game
 	scene   *game.Scene
 
 	server      string             // server dial string
@@ -21,20 +22,24 @@ type ClientNetworkSystem struct {
 	serverwchan chan<- interface{} // server write channel
 }
 
-func NewClientNetworkSystem(s *game.Scene, server string) (*ClientNetworkSystem, error) {
+func NewClientNetworkSystem(g *Game, s *game.Scene, server string) (*ClientNetworkSystem, error) {
 	sys := &ClientNetworkSystem{
-		do:     make(chan func(*ClientNetworkSystem)),
+		do:     make(chan func(*ClientNetworkSystem), 10),
+		g:      g,
 		scene:  s,
 		server: server,
 	}
 
-	sys.scene.Wg.Add(1)
-
 	if err := game.StartSystem(sys, true); err != nil {
 		return nil, err
 	}
+	sys.scene.AddSystem(sys)
 	sys.Syn()
 	return sys, nil
+}
+
+func (sys ClientNetworkSystem) String() string {
+  return "clientnetwork"
 }
 
 func (sys *ClientNetworkSystem) DoOne() error {
@@ -86,7 +91,7 @@ func (sys *ClientNetworkSystem) Setup() error {
 
 	con, err := net.Dial("tcp", sys.server)
 	if err != nil {
-		glog.Fatal(err)
+		glog.Info(err)
 		return err
 	} else if glog.V(1) {
 		glog.Infof("connected to %s", sys.server)
@@ -95,6 +100,11 @@ func (sys *ClientNetworkSystem) Setup() error {
 	sys.servercon = con
 	sys.serverrchan = chanio.NewReader(sys.servercon)
 	sys.serverwchan = chanio.NewWriter(sys.servercon)
+
+  sys.g.em.On("packet", func(i ...interface{}) {
+    pkt := i[0].(*gnet.Packet)
+    sys.onpacket(pkt)
+  })
 
 	glog.Info("setup: complete")
 	return nil
@@ -110,11 +120,30 @@ func (sys *ClientNetworkSystem) Tick(timestep time.Duration) {
 func (sys *ClientNetworkSystem) TearDown() {
 	// TODO: cleanup networking
 	glog.Info("teardown: complete")
-	sys.scene.Wg.Done()
+	sys.scene.RemoveSystem(sys)
 }
 
 func (sys *ClientNetworkSystem) Update(delta time.Duration) {
 	// TODO: send/recieve packets
+loop:
+	for {
+		select {
+		case i := <-sys.serverrchan:
+			pkt, ok := i.(*gnet.Packet)
+			if !ok {
+				glog.Warning("update: bogus packet %#v from %s", i, sys.server)
+			}
+
+			if glog.V(1) {
+				glog.Infof("update: got packet %s", pkt)
+			}
+
+      sys.g.em.Emit("packet", pkt)
+
+		default:
+			break loop
+		}
+	}
 }
 
 func (sys *ClientNetworkSystem) SendPacket(tag string, data interface{}) {
@@ -123,4 +152,27 @@ func (sys *ClientNetworkSystem) SendPacket(tag string, data interface{}) {
 		glog.Infof("sendpacket: sending %s", pkt)
 		sys.serverwchan <- pkt
 	}
+}
+
+func (sys *ClientNetworkSystem) onpacket(pkt *gnet.Packet) {
+    switch pkt.Tag {
+    case "Rgetterrain":
+      mapname := pkt.Data[0].(string)
+      ter := pkt.Data[1].(*game.TerrainChunk)
+      sys.g.rsys.SetTerrainChunk(ter)
+      glog.Infof("loaded map %s", mapname)
+    case "newactor":
+      id := pkt.Data[0].(string)
+      glog.Info("adding actor ", id)
+      _ = sys.scene.Add(id)
+    case "propposadd":
+      idpos := pkt.Data[0].(*gnet.PropPosAdd)
+      pos := sys.g.msys.Pos()
+      pos.Set(idpos.Pos)
+      sys.scene.Actors[idpos.Id].Add(pos)
+    case "propspriteadd":
+      idsprite := pkt.Data[0].(*gnet.PropSpriteAdd)
+      sprite := game.NewStaticSprite(idsprite.Id, idsprite.Sprite)
+      sys.scene.Actors[idsprite.Id].Add(sprite)
+    }
 }

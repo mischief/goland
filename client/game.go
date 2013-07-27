@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"github.com/aarzilli/golua/lua"
+	"github.com/chuckpreslar/emission"
 	"github.com/golang/glog"
 	"github.com/mischief/goland/client/graphics"
 	"github.com/mischief/goland/game"
@@ -15,12 +17,9 @@ import (
 	"time"
 )
 
-const (
-	FPS_LIMIT = 23
-)
-
 var (
-	CARDINALS = map[rune]game.Action{
+	CARDINALS = map[rune]string{
+	/*
 		'w': game.DIR_UP,
 		'k': game.DIR_UP,
 		'a': game.DIR_LEFT,
@@ -32,6 +31,7 @@ var (
 		',': game.ACTION_ITEM_PICKUP,
 		'x': game.ACTION_ITEM_DROP,
 		'i': game.ACTION_ITEM_LIST_INVENTORY,
+	*/
 	}
 )
 
@@ -42,34 +42,49 @@ type Game struct {
 	msys *game.MovementSystem
 	nsys *ClientNetworkSystem
 
+	// Event emitter/handler
+	em *emission.Emitter
+
 	closechan chan bool
 
 	//Objects *game.GameObjectMap
 	//Map     *game.MapChunk
+	terrain *game.TerrainChunk
 
+	// config
 	config *gutil.LuaConfig
 
+	// lua
+	lua *lua.State
+
+	// server connection
 	ServerCon net.Conn
 
+	// read/write chanio on server connection
 	ServerRChan <-chan interface{}
 	ServerWChan chan<- interface{}
 }
 
-func NewGame(config *gutil.LuaConfig) *Game {
+func NewGame(config *gutil.LuaConfig, lua *lua.State) *Game {
 	g := Game{
 		scene:     game.NewScene(),
+		em:        emission.NewEmitter(),
 		config:    config,
+		lua:       lua,
 		closechan: make(chan bool, 1),
 	}
 
+	g.em.SetMaxListeners(10000)
+
 	// make player
+
 	/*
 	  pl := g.scene.Add("player")
 
 	  pos := g.msys.Pos()
 	  pos.Set(image.Pt(0,0))
 
-	  sp := g.rsys.StaticSprite("Human", termbox.Cell{'@', 0, 0})
+	  sp := game.NewStaticSprite("player", termbox.Cell{'@', 0, 0})
 
 	  pl.Add(pos)
 	  pl.Add(sp)
@@ -78,31 +93,27 @@ func NewGame(config *gutil.LuaConfig) *Game {
 	return &g
 }
 
-func (g *Game) Run() {
+// Broadcast an error message and log it.
+func (g *Game) Log(s string) {
+	g.em.Emit("log", s)
+	glog.Info(s)
+}
 
+func (g *Game) Quit() {
+	g.closechan <- true
+}
+
+func (g *Game) Run() {
 	g.Start()
 
-	timer := game.NewDeltaTimer()
-	ticker := time.NewTicker(time.Second / FPS_LIMIT)
+	ticker := time.NewTicker(time.Second)
 
 	run := true
 
 	for run {
 		select {
 		case <-ticker.C:
-			// frame tick
-			delta := timer.DeltaTime()
-
-			if delta.Seconds() > 0.25 {
-				delta = time.Duration(250 * time.Millisecond)
-			}
-
-			g.Update(delta)
-			g.Draw()
-
 			glog.Flush()
-
-			//g.Flush()
 
 		case <-g.closechan:
 			glog.Infof("got close signal")
@@ -115,19 +126,13 @@ func (g *Game) Run() {
 }
 
 func (g *Game) Start() {
+	var err error
+
 	glog.Info("starting")
 
 	// config items
-	// network setup
-	sc, err := g.config.Get("server", reflect.String)
-	if err != nil {
-		glog.Fatal("start: missing server in config: %s", err)
-	}
-
-	server := sc.(string)
-
 	// systems
-	if g.rsys, err = graphics.NewRenderSystem(g.scene); err != nil {
+	if g.rsys, err = graphics.NewRenderSystem(g.scene, g.em); err != nil {
 		glog.Fatalf("rendersystem: %s", err)
 	}
 
@@ -135,36 +140,86 @@ func (g *Game) Start() {
 		glog.Fatalf("movementsystem: %s", err)
 	}
 
-	if g.nsys, err = NewClientNetworkSystem(g.scene, server); err != nil {
-		glog.Fatalf("clientnetworksystem: %s", err)
-	}
-
 	// camera
 	c := g.scene.Add("camera")
 	cpp := g.msys.Pos()
-	cpp.Set(image.Pt(128, 128))
+	cpp.Set(image.Pt(0, 0))
 	c.Add(cpp)
 	cc := g.rsys.Cam(c.ID)
 	cc.SetCenter(<-cpp.Get()) // is this necessary?
 	c.Add(cc)
 
 	// graphics panels
-	g.rsys.AddPanel("stats", NewStatsPanel())
-	g.rsys.AddPanel("view", graphics.NewViewPanel(g.rsys, c))
-	g.rsys.AddPanel("log", NewLogPanel())
+  sp := NewStatsPanel(g)
+  sp.Title("stats").TitleStyle(graphics.TitleStyle)
+  sp.Pos(0.5, 0.05).Size(1.0, 0.1)
+  sp.SetLimits(image.Rect(0, 1, 0, 0))
+  sp.Activate()
+	g.rsys.AddPanel("stats", sp)
+
+  vp := NewViewPanel(g, c)
+  vp.Title("view").TitleStyle(graphics.TitleStyle)
+  vp.Pos(0.5, 0.5).Size(1.0, 0.55)
+  vp.Activate()
+
+	g.rsys.AddPanel("view", vp)
+
+	logpanel := NewLogPanel(g)
+	g.rsys.AddPanel("log", logpanel)
 	g.rsys.AddPanel("player", NewPlayerPanel(g))
 	g.rsys.AddPanel("chat", NewChatPanel(g, g.nsys))
+	g.rsys.AddPanel("console", NewConsolePanel(g))
+
+  qp := NewQuitPanel(g)
+  qp.Title("quit").TitleStyle(graphics.TitleStyle)
+  qp.Pos(0.5, 0.5).Size(0.15, 0.2)
+
+	g.rsys.AddPanel("quit", qp)
+
+	// resize all panels
+	w, h := termbox.Size()
+	g.em.Emit("resize", termbox.Event{Type: termbox.EventResize, Width: w, Height: h})
+
+	// do keybindings
+	g.SetupKeys()
+
+	// network setup
+	sconf := "server"
+	sc, err := g.config.Get(sconf, reflect.String)
+	if err != nil {
+		g.Log(fmt.Sprintf("no %q in config: %s", sconf, err))
+		//glog.Errorf("start: missing server in config: %s", err)
+		//logpanel.addline(fmt.Sprintf("connection to the server failed: %s", err))
+	}
+
+	server := sc.(string)
+
+	// setup network
+	if g.nsys, err = NewClientNetworkSystem(g, g.scene, server); err != nil {
+		g.Log(fmt.Sprintf("clientnetworksystem: %s", err))
+	} else {
+		if err := g.Login(); err != nil {
+			g.Log(fmt.Sprintf("login error: %s", err))
+		}
+	}
+
+	glog.Info("start complete")
+	glog.Flush()
+}
+
+func (g *Game) Login() error {
 
 	// login
 	username, err := g.config.Get("username", reflect.String)
 	if err != nil {
-		glog.Fatal("start: missing username in config: %s", err)
+		glog.Infof("start: missing username in config: %s", err)
+		return fmt.Errorf("missing username name in config, can't log in!")
 	}
 
-	g.nsys.SendPacket("Tconnect", username)
+	g.nsys.SendPacket("Tlogin", username)
 
 	// request the map from server
-	g.nsys.SendPacket("Tloadmap", nil)
+	g.nsys.SendPacket("Tgetterrain", nil)
 
 	// request the object we control
 	// XXX: the delay is to fix a bug regarding ordering of packets.
@@ -174,37 +229,30 @@ func (g *Game) Start() {
 		g.nsys.SendPacket("Tgetplayer", nil)
 	})
 
-	// anonymous function that reads packets from the server
-	/*
-		go func(r <-chan interface{}) {
-			for x := range r {
-				p, ok := x.(*gnet.Packet)
-				if !ok {
-					glog.Warningf("server read: bogus server packet %#v", x)
-					continue
-				}
+	return nil
+}
 
-				g.HandlePacket(p)
-			}
-			glog.Warning("server read: Disconnected from server!")
-			//io.WriteString(g.logpanel, "Disconnected from server!")
-		}(g.ServerRChan)
-	*/
-
+func (g *Game) SetupKeys() {
 	// ESC to quit
-	g.rsys.HandleKey(termbox.KeyEsc, func(ev termbox.Event) { g.closechan <- false })
+	g.rsys.HandleKey(termbox.KeyEsc, func(ev termbox.Event) {
+		g.rsys.PushActivePanelName("quit")
+	})
 
 	// Enter to chat
 	g.rsys.HandleKey(termbox.KeyEnter, func(ev termbox.Event) {
-		g.rsys.PushPanelInputName("chat")
+		g.rsys.PushActivePanelName("chat")
+	})
+
+	g.rsys.HandleRune('`', func(ev termbox.Event) {
+		g.rsys.PushActivePanelName("console")
 	})
 
 	// convert to func SetupDirections()
 	for k, v := range CARDINALS {
-		func(c rune, d game.Action) {
+		func(c rune, a string) {
 			g.rsys.HandleRune(c, func(_ termbox.Event) {
 				// lol collision
-				g.nsys.SendPacket("Taction", CARDINALS[c])
+				g.nsys.SendPacket("Taction", a)
 				/*
 					offset := game.DirTable[d]
 					g.pm.Lock()
@@ -227,57 +275,15 @@ func (g *Game) Start() {
 			*/
 		}(k, v)
 	}
-
 }
 
 func (g *Game) End() {
 	glog.Info("stopping systems")
 
-	g.rsys.Stop()
-	g.msys.Stop()
-	g.nsys.Stop()
-	g.scene.Wg.Wait()
+	g.scene.StopSystems()
 
 	glog.Info("ending")
 	glog.Flush()
-}
-
-func (g *Game) Update(delta time.Duration) {
-	// collect stats
-	/*
-		for _, p := range g.panels {
-			if v, ok := p.(InputHandler); ok {
-				v.HandleInput(termbox.Event{Type: termbox.EventResize})
-			}
-
-			if v, ok := p.(gutil.Updater); ok {
-				v.Update(delta)
-			}
-		}
-
-		//g.RunInputHandlers()
-
-		//for o := range g.Objects.Chan() {
-		//	o.Update(delta)
-		//}
-	*/
-
-}
-
-func (g *Game) Draw() {
-
-	//g.Terminal.Clear()
-	//g.mainpanel.Clear()
-
-	// draw panels
-	/*
-		for _, p := range g.panels {
-			if v, ok := p.(panel.Drawer); ok {
-				v.Draw()
-			}
-		}
-	*/
-
 }
 
 // deal with gnet.Packets received from the server
@@ -318,7 +324,7 @@ func (g *Game) HandlePacket(pk *gnet.Packet) {
 
 		// Rnewobject: new object we need to track
 	case "Rnewobject":
-		obj := pk.Data.(game.Object)
+		obj := pk.Data[0].(game.Object)
 
 		name := fmt.Sprintf("%s%d", obj.GetName(), obj.GetID())
 
@@ -327,7 +333,7 @@ func (g *Game) HandlePacket(pk *gnet.Packet) {
 		pos := g.msys.Pos()
 		pos.Set(image.Pt(obj.GetPos()))
 
-		sp := g.rsys.StaticSprite(name, obj.GetGlyph())
+		sp := game.NewStaticSprite(name, obj.GetGlyph())
 
 		a.Add(pos)
 		a.Add(sp)
@@ -355,11 +361,6 @@ func (g *Game) HandlePacket(pk *gnet.Packet) {
 				g.ServerWChan <- gnet.NewPacket("Tgetplayer", nil)
 			})
 		}*/
-
-		// Rloadmap: get the map data from the server
-	case "Rloadmap":
-		//gmap := pk.Data.(*game.MapChunk)
-		//g.Map = gmap
 
 	default:
 		glog.Infof("bad packet tag %s", pk.Tag)

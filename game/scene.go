@@ -9,21 +9,28 @@ type Scene struct {
 	byProperty map[PropType][]*Actor
 	Actors     map[string]*Actor
 
+	// lock for protecting data
+	m sync.Mutex
+
 	// systems running in this scene
-	systems []System
+	systems map[string]System
 
 	// wg for synchronized systems shutdown
-	Wg sync.WaitGroup
+	wg sync.WaitGroup
 }
 
 func NewScene() *Scene {
 	return &Scene{
 		byProperty: make(map[PropType][]*Actor),
 		Actors:     make(map[string]*Actor),
+		systems:    make(map[string]System),
 	}
 }
 
 func (s *Scene) Add(id string) *Actor {
+	s.m.Lock()
+	defer s.m.Unlock()
+
 	a := NewActor(id)
 	e := s.addActor(a)
 	a.scene = s
@@ -50,6 +57,9 @@ func (s *Scene) addActor(a *Actor) error {
 
 // Removes a given actor from the scene.
 func (s *Scene) Remove(a *Actor) {
+	s.m.Lock()
+	defer s.m.Unlock()
+
 	if _, ok := s.Actors[a.ID]; !ok {
 		return
 	}
@@ -62,6 +72,8 @@ func (s *Scene) Remove(a *Actor) {
 }
 
 func (s *Scene) cache(a *Actor, t PropType) {
+	s.m.Lock()
+	defer s.m.Unlock()
 	if _, ok := s.byProperty[t]; !ok {
 		s.byProperty[t] = []*Actor{}
 	}
@@ -69,6 +81,8 @@ func (s *Scene) cache(a *Actor, t PropType) {
 }
 
 func (s *Scene) uncache(a *Actor, t PropType) {
+	s.m.Lock()
+	defer s.m.Unlock()
 	if actors, ok := s.byProperty[t]; ok {
 		// TODO: pre-allocate right size rather than constant resizing
 		newlist := []*Actor{}
@@ -88,6 +102,9 @@ func (s *Scene) uncache(a *Actor, t PropType) {
 // probably have to be improved in many ways, possibly by using a
 // binary search tree.
 func (s *Scene) Find(p ...PropType) (result []*Actor) {
+	s.m.Lock()
+	defer s.m.Unlock()
+
 	// opt: exclude actors without first property
 	if actors, ok := s.byProperty[p[0]]; ok {
 		if len(p) == 1 {
@@ -123,4 +140,30 @@ func (s *Scene) Find(p ...PropType) (result []*Actor) {
 	}
 
 	return result
+}
+
+// Track our systems
+func (s *Scene) AddSystem(sys System) {
+	s.m.Lock()
+	defer s.m.Unlock()
+
+	s.wg.Add(1)
+  s.systems[sys.String()] = sys
+}
+
+func (s *Scene) RemoveSystem(sys System) {
+	s.m.Lock()
+	defer s.m.Unlock()
+
+	s.wg.Done()
+  delete(s.systems, sys.String())
+}
+
+// Request stop of all systems and wait for them to shut down
+func (s *Scene) StopSystems() {
+	for _, sys := range s.systems {
+		sys.Stop()
+	}
+
+	s.wg.Wait()
 }

@@ -12,30 +12,34 @@ import (
 )
 
 type WorldSession struct {
-	Con         net.Conn           // connection to the client
-	ClientRChan <-chan interface{} // client's incoming message channel
-	ClientWChan chan<- interface{} // client's outgoing message channel
+	con         net.Conn           // connection to the client
+	clientrchan <-chan interface{} // client's incoming message channel
+	clientwchan chan<- interface{} // client's outgoing message channel
 	ID          uuid.UUID          // client's id (account id?)
 	Username    string             // associated username
 	Pos         image.Point        // XXX: what's this for?
-	Player      game.Object        // object this client controls
-	World       *GameServer        // world reference
+	Player      *game.Actor         // object this client controls
+	nsys        *ServerNetworkSystem
+	gs          *GameServer // world reference
 }
 
 func (ws *WorldSession) String() string {
-	return fmt.Sprintf("%s %s %s %s", ws.Con.RemoteAddr(), ws.ID, ws.Pos, ws.Player)
+	return fmt.Sprintf("addr %s user %s", ws.con.RemoteAddr(), ws.Username)
 }
 
-func NewWorldSession(w *GameServer, c net.Conn) *WorldSession {
+func NewWorldSession(gs *GameServer, nsys *ServerNetworkSystem, c net.Conn) *WorldSession {
 	var err error
 	var id *uuid.UUID
 
-	n := new(WorldSession)
+	n := &WorldSession{
+		con:      c,
+		Username: "(unknown)",
+		nsys:     nsys,
+		gs:       gs,
+	}
 
-	n.Con = c
-
-	n.ClientRChan = chanio.NewReader(n.Con)
-	n.ClientWChan = chanio.NewWriter(n.Con)
+	n.clientrchan = chanio.NewReader(n.con)
+	n.clientwchan = chanio.NewWriter(n.con)
 
 	if id, err = uuid.NewV4(); err != nil {
 		glog.Error("uuid.NewV4: ", err)
@@ -44,7 +48,20 @@ func NewWorldSession(w *GameServer, c net.Conn) *WorldSession {
 		n.ID = *id
 	}
 
-	n.World = w
+  n.gs.em.On("newactor", func(i ...interface{}) {
+    actor := i[0].(*game.Actor)
+    n.SendPacket(gnet.NewPacket("newactor", actor.ID))
+  })
+  n.gs.em.On("propposadd", func(i ...interface{}) {
+    id := i[0].(string)
+    pos := i[1].(*game.Pos)
+    n.SendPacket(gnet.NewPacket("propposadd", gnet.PropPosAdd{id, <-pos.Get()}))
+  })
+  n.gs.em.On("propspriteadd", func(i ...interface{}) {
+    id := i[0].(string)
+    sprite := i[1].(*game.StaticSprite)
+    n.SendPacket(gnet.NewPacket("propspriteadd", gnet.PropSpriteAdd{id, sprite.GetCell()}))
+  })
 
 	return n
 }
@@ -57,21 +74,18 @@ func (ws *WorldSession) ReceiveProc() {
 		}
 	}()
 
-	for x := range ws.ClientRChan {
+	for x := range ws.clientrchan {
 		p, ok := x.(*gnet.Packet)
 		if !ok {
-			glog.Warning("receiveproc: bogus packet %#v from %s", x, ws.Con.RemoteAddr())
+			glog.Warning("receiveproc: bogus packet %#v from %s", x, ws.con.RemoteAddr())
 			continue
 		}
 
-		cp := &ClientPacket{ws, p}
-
-		ws.World.PacketChan <- cp
+		// TODO: handle this client's packets
+		ws.nsys.HandlePacket(&ClientPacket{ws, p})
 	}
 
-	dis := &ClientPacket{ws, gnet.NewPacket("Tdisconnect", nil)}
-
-	ws.World.PacketChan <- dis
+	ws.gs.em.Emit("disconnect", ws)
 
 	glog.Infof("receiveproc: channel closed %s", ws)
 }
@@ -79,7 +93,7 @@ func (ws *WorldSession) ReceiveProc() {
 // send packet to this client
 func (ws *WorldSession) SendPacket(pk *gnet.Packet) {
 	if glog.V(2) {
-		glog.Infof("sendpacket: %s %s", ws.Con.RemoteAddr(), pk)
+		glog.Infof("sendpacket: %s %s", ws.con.RemoteAddr(), pk)
 	}
 
 	defer func() {
@@ -87,7 +101,7 @@ func (ws *WorldSession) SendPacket(pk *gnet.Packet) {
 			glog.Error("sendpacket: error: ", err)
 		}
 	}()
-	ws.ClientWChan <- pk
+	ws.clientwchan <- pk
 }
 
 func (ws *WorldSession) Update() {

@@ -20,14 +20,18 @@ func NewMovementSystem(s *Scene) (*MovementSystem, error) {
 		scene: s,
 	}
 
-	sys.scene.Wg.Add(1)
-
 	if err := StartSystem(sys, true); err != nil {
 		return nil, err
 	}
 
+	s.AddSystem(sys)
+
 	sys.Syn()
 	return sys, nil
+}
+
+func (sys MovementSystem) String() string {
+	return "movement"
 }
 
 func (sys *MovementSystem) DoOne() error {
@@ -88,7 +92,7 @@ func (sys *MovementSystem) Tick(timestep time.Duration) {
 
 func (sys *MovementSystem) TearDown() {
 	glog.Info("teardown: complete")
-	sys.scene.Wg.Done()
+	sys.scene.RemoveSystem(sys)
 }
 
 func (sys *MovementSystem) Update(delta time.Duration) {

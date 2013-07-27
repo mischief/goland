@@ -20,6 +20,7 @@ func init() {
 
 func main() {
 	flag.Parse()
+  defer glog.Flush()
 
 	lua := gutil.LuaInit()
 	if lua == nil {
@@ -78,7 +79,7 @@ func main() {
 	}
 
 	glog.Info("creating game instance")
-	g := NewGame(config)
+	g := NewGame(config, lua)
 
 	g.Run()
 

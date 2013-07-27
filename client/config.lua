@@ -7,10 +7,13 @@ config = {
   --server      = "iota.offblast.org:61507",
 
   -- logging & debugging
-  logfile     = "client.log",
+  --logfile     = "client.log",
 
   debug       = "true",
   --cpuprofile  = "client.profile",
+  stuff = {
+    foo = "bar",
+  }
 
 }
 

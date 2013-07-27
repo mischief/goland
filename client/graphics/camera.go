@@ -1,21 +1,25 @@
 package graphics
 
 import (
+	"fmt"
 	"github.com/mischief/goland/game"
 	"image"
-  "fmt"
 )
 
+// A camera property
 type Camera struct {
 	do chan func(*Camera)
+
+	name string
 
 	pos      image.Point     // center of the camera
 	sizeRect image.Rectangle // camera's size
 	rect     image.Rectangle // camera's bounding box
 }
 
+// Construct a new camera property with a name
 func (sys *RenderSystem) Cam(name string) *Camera {
-	c := &Camera{do: make(chan func(*Camera))}
+	c := &Camera{do: make(chan func(*Camera), 10)}
 
 	c.start()
 
@@ -47,68 +51,66 @@ func (c *Camera) Syn() {
 }
 
 func (c *Camera) start() {
-  go func() {
-    for f := range c.do {
-      f(c)
-    }
-  }()
+	go func() {
+		for f := range c.do {
+			f(c)
+		}
+	}()
 }
 
 func (c *Camera) SetCenter(p image.Point) {
-  c.do <- func(c *Camera) {
-    newp := p.Sub(c.sizeRect.Size().Div(2))
-    c.pos = newp
-    c.rect = image.Rect(newp.X, newp.Y, newp.X + c.sizeRect.Dx(), newp.Y + c.sizeRect.Dy())
-  }
+	c.do <- func(c *Camera) {
+		newp := p.Sub(c.sizeRect.Size().Div(2))
+		c.pos = newp
+		c.rect = image.Rect(newp.X, newp.Y, newp.X+c.sizeRect.Dx(), newp.Y+c.sizeRect.Dy())
+	}
 }
 
 func (c *Camera) Resize(size image.Point) {
-  c.do <- func(c *Camera) {
-    c.sizeRect = image.Rect(0, 0, size.X, size.Y)
-  }
+	c.do <- func(c *Camera) {
+		c.sizeRect = image.Rect(0, 0, size.X, size.Y)
+	}
 }
 
-func (c *Camera) Transform(pt image.Point) <-chan image.Point {
-  ch := make(chan image.Point)
-  c.do <- func(c *Camera) {
-    newpt := pt.Sub(c.rect.Min)
-    ch <- newpt
-    close(ch)
-  }
+type Transformer func(pt image.Point) image.Point
 
-  return ch
-}
-
-
-/*
-func NewCamera(rect image.Rectangle) Camera {
-	sz := rect.Size()
-	r := image.Rect(0, 0, sz.X, sz.Y)
-
-	c := Camera{
-		Pos:      image.ZP,
-		SizeRect: r,
-		Rect:     r,
+// Returns a function which applies the viewport transformation of the camera
+// for current offsets.
+func (c *Camera) GetTransformer() Transformer {
+	ch := make(chan Transformer)
+	c.do <- func(c *Camera) {
+		trans := func(pt image.Point) image.Point {
+			return pt.Sub(c.rect.Min)
+		}
+		ch <- trans
+		close(ch)
 	}
 
-	return c
+	return <-ch
 }
 
-// place the camera's center at pt
-func (c *Camera) SetCenter(pt image.Point) {
-	newpos := pt.Sub(c.SizeRect.Size().Div(2))
-	c.Pos = pt
-	c.Rect = image.Rect(newpos.X, newpos.Y, newpos.X+c.SizeRect.Dx(), newpos.Y+c.SizeRect.Dy())
-}
-
-//
-func (c *Camera) Transform(pt image.Point) image.Point {
-	return pt.Sub(c.Rect.Min) //.Add(c.Rect.Size().Div(2))
-}
+type Containsf func(pt image.Point) bool
 
 // check if world tile pt is inside camera bounds c.Rect
-// FIXME
-func (c *Camera) ContainsWorldPoint(pt image.Point) bool {
-	return pt.In(c.Rect)
+func (c *Camera) ContainsWorldPoint(pt image.Point) Containsf {
+	ch := make(chan Containsf)
+	c.do <- func(c *Camera) {
+		containsf := func(pt image.Point) bool {
+			return pt.In(c.rect)
+		}
+		ch <- containsf
+		close(ch)
+	}
+
+	return <-ch
 }
-*/
+
+func (c *Camera) GetWorldIntersection(world image.Rectangle) image.Rectangle {
+	ch := make(chan image.Rectangle)
+	c.do <- func(c *Camera) {
+		ch <- c.rect.Intersect(world)
+		close(ch)
+	}
+
+	return <-ch
+}
