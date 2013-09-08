@@ -1,9 +1,9 @@
 -- loot database
 --
 -- loot.make:
--- Load a dagger, itemid("1") on a map @ pos 194, 254:
+-- Load a dagger, itemid(1) on a map @ pos 194, 254:
 --
---     items.load({loot.make("1", 194, 254)})
+--     items.load({loot.make(1, 194, 254)})
 --
 
 function file_load(location, filename)
@@ -19,9 +19,12 @@ end
 local db_string = file_load('../game/data', 'loot.json')
 local DB = Json.Decode(db_string)
 
+local get_item = function(DB, itemid)
+    return DB.items[itemid + 1]
+end
 -- creates an item entry to place itemid on the map at (posx, posy)
 local make = function(itemid, posx, posy)
-    i = DB[itemid]
+    i = get_item(DB, itemid)
     return { i.name, posx, posy, i.glyph, i.color_fg, i.color_bg }
 end
 
