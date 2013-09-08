@@ -1,4 +1,10 @@
 -- loot database
+--
+-- loot.make:
+-- Load a dagger, itemid("1") on a map @ pos 194, 254:
+--
+--     items.load({loot.make("1", 194, 254)})
+--
 
 function file_load(location, filename)
     local path = location .. "/" .. filename
@@ -10,14 +16,16 @@ function file_load(location, filename)
     return c
 end
 
-local file_contents = file_load('../game/data', 'loot.json')
-local DB = Json.Decode(file_contents)--file_load('../game/data', 'loot.json')) -- decode example
+local db_string = file_load('../game/data', 'loot.json')
+local DB = Json.Decode(db_string)
 
+-- creates an item entry to place itemid on the map at (posx, posy)
 local make = function(itemid, posx, posy)
     i = DB[itemid]
     return { i.name, posx, posy, i.glyph, i.color_fg, i.color_bg }
 end
 
+-- modifies the color of the item (useful for flags)
 local colorize = function(item, color)
     item[5] = color
     return item
