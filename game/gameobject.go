@@ -72,6 +72,7 @@ type Object interface {
 
 type GameObject struct {
 	ID         int             // game object id
+    ItemID     int             // id if from game/data/items.json, else -1
 	Name       string          // object name
 	Pos        image.Point     // object world coordinates
 	Glyph      termbox.Cell    // character for this object
@@ -84,6 +85,7 @@ type GameObject struct {
 func NewGameObject(name string) Object {
 	gob := &GameObject{
 		ID:         <-idchan,
+        ItemID      -1,
 		Name:       name,
 		Pos:        image.ZP,
 		Glyph:      termbox.Cell{'¡', termbox.ColorRed, termbox.ColorDefault},

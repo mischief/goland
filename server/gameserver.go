@@ -59,7 +59,7 @@ func NewGameServer(config *gutil.LuaConfig, ls *lua.State) (*GameServer, error) 
 	gs.Add(new(PacketLogger), "logger")
 
 	// connect processes
-	gs.Connect("router", "Log", "logger", "In", make(chan *ClientPacket))
+	gs.Connect("router", "Log", "logger", "In")
 
 	// map external ports
 	gs.MapInPort("In", "router", "In")
