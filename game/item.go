@@ -12,7 +12,7 @@ func init() {
 }
 
 type Item struct {
-	Object          // The game object?
+	Object // The game object?
 
 	Desc     string
 	Weight   int
