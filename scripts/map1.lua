@@ -5,13 +5,13 @@ collision = require('collision')
 -- the goods
 
 theloot = {
-  loot.make("1", 120, 126),
-  loot.make("2", 121, 126),
-  loot.make("3", 122, 126)
+  loot.make(1, 120, 126),
+  loot.make(2, 121, 126),
+  loot.make(3, 122, 126)
 }
 
 -- flag itemid is "0"
-local flag_id = "0"
+local flag_id = 0
 flags = {
     loot.colorize(loot.make(flag_id, 119, 125), "red"),
     loot.colorize(loot.make(flag_id, 119, 133), "red"),
