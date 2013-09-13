@@ -30,3 +30,13 @@ func StrToTermboxAttr(str string) termbox.Attribute {
 
 	return attrmap["default"]
 }
+
+var keymap = map[string]termbox.Key{
+	"enter": termbox.KeyEnter,
+	"esc":   termbox.KeyEsc,
+	"space": termbox.KeySpace,
+}
+
+func StrToKey(str string) termbox.Key {
+	return keymap[str]
+}

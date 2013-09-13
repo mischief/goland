@@ -2,12 +2,10 @@ package main
 
 import (
 	"fmt"
-	"github.com/errnoh/termbox/panel"
 	"github.com/golang/glog"
 	"github.com/mischief/goland/client/graphics"
 	"github.com/mischief/goland/game/gnet"
 	"github.com/nsf/termbox-go"
-	"image"
 	"time"
 )
 
@@ -20,7 +18,7 @@ const (
 // i.e. old entries fall off (not off the front, off the back)
 type LogPanel struct {
 	do chan func(*LogPanel)
-	*panel.Buffered
+	*graphics.BasePanel
 
 	g *Game
 
@@ -32,10 +30,11 @@ type LogPanel struct {
 // Construct a new LogPanel
 func NewLogPanel(g *Game) *LogPanel {
 	lp := &LogPanel{
-		do:       make(chan func(*LogPanel), 1),
-		g:        g,
-		lines:    nlines,
-		messages: make([]string, nlines),
+		do:        make(chan func(*LogPanel), 1),
+		BasePanel: graphics.NewPanel(),
+		g:         g,
+		lines:     nlines,
+		messages:  make([]string, nlines),
 	}
 
 	g.em.On("log", func(i ...interface{}) {
@@ -56,7 +55,7 @@ func NewLogPanel(g *Game) *LogPanel {
 	g.em.On("resize", func(i ...interface{}) {
 		ev := i[0].(termbox.Event)
 		lp.do <- func(lp *LogPanel) {
-			lp.resize(ev.Width, ev.Height)
+			lp.Resize(ev.Width, ev.Height)
 		}
 	})
 
@@ -67,28 +66,25 @@ func NewLogPanel(g *Game) *LogPanel {
 func (lp *LogPanel) Draw() {
 	lp.Clear()
 
-	fg := termbox.ColorBlue
-	bg := termbox.ColorDefault
-
 	y := 0
 
 	if lp.start+lp.count > lp.lines {
 		for _, line := range lp.messages[lp.start:] {
 			for ic, r := range line {
-				lp.SetCell(ic, y, r, fg, bg)
+				lp.SetCell(ic, y, r, graphics.TextStyle.Fg, graphics.TextStyle.Bg)
 			}
 			y++
 		}
 		for _, line := range lp.messages[:lp.start+lp.count-lp.lines] {
 			for ic, r := range line {
-				lp.SetCell(ic, y, r, fg, bg)
+				lp.SetCell(ic, y, r, graphics.TextStyle.Fg, graphics.TextStyle.Bg)
 			}
 			y++
 		}
 	} else {
 		for _, line := range lp.messages[lp.start : lp.start+lp.count] {
 			for ic, r := range line {
-				lp.SetCell(ic, y, r, fg, bg)
+				lp.SetCell(ic, y, r, graphics.TextStyle.Fg, graphics.TextStyle.Bg)
 			}
 			y++
 		}
@@ -106,13 +102,6 @@ func (lp *LogPanel) Update(delta time.Duration) {
 			return
 		}
 	}
-}
-
-// resize event handler
-func (lp *LogPanel) resize(w, h int) {
-	r := image.Rect(1, h-7, w-1, h-3)
-	lp.Buffered = panel.NewBuffered(r, graphics.BorderStyle)
-	lp.SetTitle("log", graphics.TitleStyle)
 }
 
 // Write a line to the log

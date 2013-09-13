@@ -1,13 +1,13 @@
 package main
 
 import (
-	"github.com/golang/glog"
-	//"github.com/mischief/gochanio"
 	"fmt"
+	"github.com/golang/glog"
 	"github.com/mischief/goland/game"
+	"github.com/mischief/goland/game/gid"
 	"github.com/mischief/goland/game/gnet"
-	termbox "github.com/nsf/termbox-go"
-	"image"
+	"github.com/mischief/goland/game/gobj"
+	//	"image"
 	"net"
 	"sync/atomic"
 	"time"
@@ -173,23 +173,28 @@ func (sys *ServerNetworkSystem) dispatchpacket(pkt *ClientPacket) {
 		} else {
 			pkt.Client.Username = user
 
-			sys.gs.em.Emit("login", pkt.Client)
+			id := gid.Gen()
+			pkt.Client.Player = gobj.NewGameObject(id, user)
 
-			id := fmt.Sprintf("%s%d", user, game.IDGen())
+			/*
+				sys.gs.em.Emit("login", pkt.Client)
 
-			a := sys.scene.Add(id)
-			pkt.Client.Player = a
-			sys.gs.em.Emit("newactor", a)
+				id := fmt.Sprintf("%s%d", user, game.IDGen())
 
-			pos := sys.gs.msys.Pos()
-			//pos.Set(image.Pt(256/2, 256/2))
-			pos.Set(image.Pt(0, 0))
-			a.Add(pos)
-			sys.gs.em.Emit("propposadd", a.ID, pos)
+				a := sys.scene.Add(id)
+				pkt.Client.Player = a
+				sys.gs.em.Emit("newactor", a)
 
-			sp := game.NewStaticSprite(id, termbox.Cell{'@', 0, 0})
-			a.Add(sp)
-			sys.gs.em.Emit("propspriteadd", a.ID, sp)
+				pos := sys.gs.msys.Pos()
+				//pos.Set(image.Pt(256/2, 256/2))
+				pos.Set(image.Pt(0, 0))
+				a.Add(pos)
+				sys.gs.em.Emit("propposadd", a.ID, pos)
+				/*
+					sp := game.NewStaticSprite(id, termbox.Cell{'@', 0, 0})
+					a.Add(sp)
+					sys.gs.em.Emit("propspriteadd", a.ID, sp)
+			*/
 		}
 
 		// text chat message
@@ -203,14 +208,14 @@ func (sys *ServerNetworkSystem) dispatchpacket(pkt *ClientPacket) {
 	case "Taction":
 	case "Tdisconnect":
 	case "Tgetplayer":
-		pkt.Reply("Rgetplayer", pkt.Client.Player.ID)
+		pkt.Reply("Rgetplayer", pkt.Client.Player.GetID())
 
 	case "Tgetterrain":
 		m, ok := sys.gs.tsys.Get("map1")
 		if !ok {
 			glog.Info("map not ok!!")
 		} else {
-			pkt.Reply("Rgetterrain", "map1", m)
+			pkt.Reply("Rgetterrain", m)
 		}
 	default:
 	}

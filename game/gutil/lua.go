@@ -21,7 +21,27 @@ func LuaInit() *lua.State {
 	//L.AtPanic(LuaAtPanic)
 
 	L.OpenLibs()
+	luar.Register(L, "game", GameLuaLib)
 	L.DoString("math.randomseed( os.time() )")
 
 	return L
 }
+
+var (
+	GameLuaLib luar.Map = map[string]interface{}{
+	//  "glyph": NewGlyph,
+	}
+)
+
+/*
+func NewGlyph(ch string, fg string, bg string) termbox.Cell {
+	newfg := gutil.StrToTermboxAttr(fg)
+	newbg := gutil.StrToTermboxAttr(bg)
+
+	r, _ := utf8.DecodeRuneInString(ch)
+
+	newch := termbox.Cell{Ch: r, Fg: newfg, Bg: newbg}
+
+	return newch
+}
+*/

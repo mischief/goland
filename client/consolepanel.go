@@ -3,15 +3,13 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"github.com/errnoh/termbox/panel"
 	"github.com/golang/glog"
 	"github.com/mischief/goland/client/graphics"
 	"github.com/nsf/termbox-go"
 	"github.com/stevedonovan/luar"
-	"image"
 	"os/exec"
+	"reflect"
 	"strings"
-	"sync/atomic"
 	"time"
 	"unicode/utf8"
 )
@@ -43,11 +41,10 @@ type ConsoleLine struct {
 
 // ConsolePanel is a panel which runs the in-game chat and command input.
 type ConsolePanel struct {
-	do              chan func(*ConsolePanel)
-	*panel.Buffered              // Panel
-	buf             bytes.Buffer // Buffer for keyboard input
-	active          int32        // are we enabled or not?
-	g               *Game
+	do                  chan func(*ConsolePanel)
+	*graphics.BasePanel              // Panel
+	buf                 bytes.Buffer // Buffer for keyboard input
+	g                   *Game
 
 	// commands
 	prompt string
@@ -64,10 +61,11 @@ type ConsolePanel struct {
 
 func NewConsolePanel(g *Game) *ConsolePanel {
 	cp := &ConsolePanel{
-		do:       make(chan func(*ConsolePanel), 100),
-		g:        g,
-		history:  []string{""},
-		messages: make([]ConsoleLine, NLINES),
+		do:        make(chan func(*ConsolePanel), 100),
+		BasePanel: graphics.NewPanel(),
+		g:         g,
+		history:   []string{""},
+		messages:  make([]ConsoleLine, NLINES),
 	}
 
 	cp.prompt = "> "
@@ -78,17 +76,17 @@ func NewConsolePanel(g *Game) *ConsolePanel {
 		Help: "no.",
 		Fn: func(args ...string) error {
 			if len(args) == 0 {
-				cp.AddLine(termbox.ColorGreen, "help topics are:")
-				cp.AddLine(termbox.ColorGreen, "")
+				cp.AddLine(graphics.TextStyle.Fg, "help topics are:")
+				cp.AddLine(graphics.TextStyle.Fg, "")
 				for _, ccmd := range cp.cmds {
-					cp.AddLine(termbox.ColorGreen, "  %15s  -  %s", ccmd.Name, ccmd.Desc)
+					cp.AddLine(graphics.TextStyle.Fg, "  %15s  -  %s", ccmd.Name, ccmd.Desc)
 				}
 			} else {
 				if ccmd, ok := cp.cmds[args[0]]; !ok {
 					return fmt.Errorf("no such command %s", args[0])
 				} else {
-					cp.AddLine(termbox.ColorGreen, "help for %s:", args[0])
-					cp.AddLine(termbox.ColorGreen, "  %s", ccmd.Help)
+					cp.AddLine(graphics.TextStyle.Fg, "help for %s:", args[0])
+					cp.AddLine(graphics.TextStyle.Fg, "  %s", ccmd.Help)
 				}
 			}
 			return nil
@@ -127,7 +125,7 @@ func NewConsolePanel(g *Game) *ConsolePanel {
 			if err != nil {
 				return fmt.Errorf("error executing %q %q: %s", arg0, argv, err)
 			}
-			cp.AddLine(termbox.ColorBlue, "%s", out)
+			cp.AddLine(graphics.TextStyle.Fg, "%s", out)
 			return nil
 		},
 	}
@@ -136,6 +134,7 @@ func NewConsolePanel(g *Game) *ConsolePanel {
 	for t, arr := range info {
 		infotopics += fmt.Sprintf("  %15s - %s\n", t, arr[0])
 	}
+
 	InfoCmd := ConsoleCommand{
 		Name: "info",
 		Desc: "get game information",
@@ -148,7 +147,7 @@ func NewConsolePanel(g *Game) *ConsolePanel {
 				for _, l := range info[args[0]] {
 					inf += fmt.Sprintf("  %s\n", l)
 				}
-				cp.AddLine(termbox.ColorBlue, "%s info:\n%s", args[0], inf)
+				cp.AddLine(graphics.TextStyle.Fg, "%s info:\n%s", args[0], inf)
 			}
 			return nil
 		},
@@ -161,7 +160,7 @@ func NewConsolePanel(g *Game) *ConsolePanel {
 		Fn: func(args ...string) error {
 			nr := len(args)
 			if nr == 0 {
-				return fmt.Errorf("usage: config [get|set]")
+				return fmt.Errorf("usage: config [get] [variable names...]")
 			} else {
 				switch args[0] {
 				case "get":
@@ -169,14 +168,16 @@ func NewConsolePanel(g *Game) *ConsolePanel {
 						if conf, err := cp.g.config.RawGet(args[1]); err != nil {
 							return fmt.Errorf("config: %s", err)
 						} else {
-							cp.AddLine(termbox.ColorGreen, "  %10s = %q", args[1], conf)
+							cp.AddLine(graphics.TextStyle.Fg, "  %10s = %v", args[1], conf)
 						}
 					} else {
-						cp.AddLine(termbox.ColorGreen, "config:")
+						cp.AddLine(graphics.TextStyle.Fg, "config:")
 						for ci := range cp.g.config.Chan() {
-							cp.AddLine(termbox.ColorGreen, "  %10s = %q", ci.Key, ci.Value)
+							cp.AddLine(graphics.TextStyle.Fg, "  %10s = %v", ci.Key, ci.Value)
 						}
 					}
+				case "set":
+					return fmt.Errorf("unimplemented")
 				}
 			}
 			return nil
@@ -189,6 +190,9 @@ func NewConsolePanel(g *Game) *ConsolePanel {
 		Desc: "execute lua",
 		Help: "usage: lua luacode...\n\nexecutes lua, must be one line",
 		Fn: func(args ...string) error {
+			if len(args) == 0 {
+				return fmt.Errorf("usage: lua luacode...")
+			}
 			code := strings.Join(args, " ")
 			errcode := cp.g.lua.LoadString(code)
 			if errcode != 0 {
@@ -212,31 +216,20 @@ func NewConsolePanel(g *Game) *ConsolePanel {
 		ConfigCmd.Name: ConfigCmd,
 		LuaCmd.Name:    LuaCmd,
 	}
-	/*
-		"list": func(args ...string) error {
-			if len(args) != 1 {
-				var cmdb bytes.Buffer
-				n := 0
-				for k, _ := range listers {
-					if n > 0 {
-						cmdb.WriteRune(' ')
-					}
-					cmdb.WriteString(k)
-					n++
-				}
-				return fmt.Errorf("invalid list command, must be one of: %s", cmdb.String())
-			} else {
-				if listf, ok := listers[args[0]]; !ok {
-					return fmt.Errorf("no such lister %s", args[0])
-				} else {
-					listf()
-				}
-			}
 
-			return nil
-		},
-		"exec":
-	}*/
+	// selectively enable commands
+	for name, _ := range cp.cmds {
+		key := "commands." + name
+		if conf, err := cp.g.config.Get(key, reflect.Bool); err == nil {
+			b := conf.(bool)
+			if b == false {
+				if glog.V(2) {
+					glog.Infof("%s = %t, disabling", key, b)
+				}
+				delete(cp.cmds, name)
+			}
+		}
+	}
 
 	g.em.On("log", func(i ...interface{}) {
 		glog.Info("consolepanel logging")
@@ -246,7 +239,7 @@ func NewConsolePanel(g *Game) *ConsolePanel {
 	g.em.On("resize", func(i ...interface{}) {
 		ev := i[0].(termbox.Event)
 		cp.do <- func(cp *ConsolePanel) {
-			cp.resize(ev.Width, ev.Height)
+			cp.Resize(ev.Width, ev.Height)
 		}
 	})
 
@@ -291,7 +284,7 @@ func wrap(str string, width int) []string {
 }
 
 func (cp *ConsolePanel) Draw() {
-	if atomic.LoadInt32(&cp.active) == 1 && cp.Buffered != nil {
+	if cp.IsActive() {
 		cp.Clear()
 
 		w := cp.Bounds().Dx()
@@ -338,7 +331,7 @@ func (cp *ConsolePanel) Draw() {
 		// draw prompt at bottom
 		str := cp.prompt + cp.buf.String()
 		for i, r := range str {
-			cp.SetCell(i, h-1, r, termbox.ColorBlue, termbox.ColorDefault)
+			cp.SetCell(i, h-1, r, graphics.PromptStyle.Fg, graphics.PromptStyle.Bg)
 		}
 
 		cp.Buffered.Draw()
@@ -389,7 +382,7 @@ func (cp *ConsolePanel) HandleInput(ev termbox.Event) {
 						cp.history = append(cp.history, str)
 						cp.hidx = 0
 						toks := strings.Fields(str)
-						cp.AddLine(termbox.ColorBlue, "%s%s", cp.prompt, str)
+						cp.AddLine(graphics.PromptStyle.Fg, "%s%s", cp.prompt, str)
 						if ccmd, ok := cp.cmds[toks[0]]; !ok {
 							cp.AddLine(termbox.ColorRed, "not a command: %s", toks[0])
 						} else {
@@ -429,14 +422,6 @@ func (cp *ConsolePanel) HandleInput(ev termbox.Event) {
 
 }
 
-func (cp *ConsolePanel) Activate() {
-	atomic.StoreInt32(&cp.active, 1)
-}
-
-func (cp *ConsolePanel) Deactivate() {
-	atomic.StoreInt32(&cp.active, 0)
-}
-
 func (cp *ConsolePanel) AddLine(fg termbox.Attribute, format string, args ...interface{}) {
 	cp.do <- func(cp *ConsolePanel) {
 		end := (cp.start + cp.count) % NLINES
@@ -448,10 +433,4 @@ func (cp *ConsolePanel) AddLine(fg termbox.Attribute, format string, args ...int
 			cp.count++
 		}
 	}
-}
-
-func (cp *ConsolePanel) resize(w, h int) {
-	r := image.Rect(4, 4, w-4, h-4)
-	cp.Buffered = panel.NewBuffered(r, graphics.BorderStyle)
-	cp.SetTitle("console", graphics.TitleStyle)
 }

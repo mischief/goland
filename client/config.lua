@@ -1,3 +1,5 @@
+-- goland client configuration
+
 config = {
   -- username
   username    = os.getenv("USER"), -- "anonymous" .. math.random(1, 256),
@@ -11,9 +13,48 @@ config = {
 
   debug       = "true",
   --cpuprofile  = "client.profile",
-  stuff = {
-    foo = "bar",
+
+  -- keybindings
+  keys = {
+    -- player control
+    w = "moveup",
+    a = "moveleft",
+    s = "movedown",
+    d = "moveright",
+
+    k = "moveup",
+    h = "moveleft",
+    j = "movedown",
+    l = "moveright",
+
+    [","] = "pickup",
+    x = "drop",
+    i = "inventory",
+
+    -- gui control
+    esc = "quit",
+    enter = "chat",
+    ["`"]   = "console",
+  },
+
+  -- enable/disable console commands
+  ---[[
+  commands = {
+    exec = false,
+    lua = false,
+  },
+  --]]
+
+  -- set theme, optional
+  ---[[
+  theme = {
+    titlefg = "magenta",
+    borderfg = "blue",
+    textfg = "white",
+
+    promptfg = "cyan",
   }
+  --]]
 
 }
 

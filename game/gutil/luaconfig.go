@@ -63,6 +63,10 @@ func (lc *LuaConfig) Get(key string, expected reflect.Kind) (res interface{}, er
 	return val, nil
 }
 
+// returns the raw proxied lua object.
+// for string values, this is a string.
+// for tables, a map[string] interface{}
+// for tables with only integer keys, a []interface{}
 func (lc *LuaConfig) RawGet(key string) (res interface{}, err error) {
 	lc.m.Lock()
 	defer lc.m.Unlock()

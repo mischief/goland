@@ -7,6 +7,7 @@ import (
 	"github.com/errnoh/termbox/panel"
 	"github.com/golang/glog"
 	"github.com/mischief/goland/game"
+	"github.com/mischief/goland/game/gterrain"
 	"github.com/nsf/termbox-go"
 	"github.com/nsf/tulib"
 	"sync/atomic"
@@ -42,7 +43,7 @@ type RenderSystem struct {
 	keyhandlers  map[termbox.Key]KeyHandler
 
 	// current terrain. TODO: fix this
-	Terrain *game.TerrainChunk
+	Terrain *gterrain.TerrainChunk
 }
 
 func NewRenderSystem(s *game.Scene, em *emission.Emitter) (*RenderSystem, error) {
@@ -134,7 +135,7 @@ func (sys *RenderSystem) Setup() error {
 				case termbox.EventKey:
 					sys.emitter.Emit("key", ev)
 				case termbox.EventResize:
-          termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
+					termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
 					sys.emitter.Emit("resize", ev)
 				}
 			}
@@ -253,7 +254,7 @@ func (sys *RenderSystem) PushActivePanel(p GamePanel) {
 func (sys *RenderSystem) PushActivePanelName(n string) {
 	sys.do <- func(sys *RenderSystem) {
 		if p, ok := sys.panels[n]; ok {
-      glog.Infof("switching to panel %s", n)
+			glog.Infof("switching to panel %s", n)
 			sys.activestack.PushFront(p)
 			if a, ok := p.(Activator); ok {
 				a.Activate()
@@ -291,13 +292,13 @@ func (sys *RenderSystem) HandleKey(k termbox.Key, h KeyHandler) {
 }
 
 // Add a panel to the render system
-func (sys *RenderSystem) AddPanel(n string, p GamePanel) {
+func (sys *RenderSystem) AddPanel(p GamePanel) {
 	sys.do <- func(sys *RenderSystem) {
-		sys.panels[n] = p
+		sys.panels[p.GetTitle()] = p
 	}
 }
 
-func (sys *RenderSystem) SetTerrainChunk(tc *game.TerrainChunk) {
+func (sys *RenderSystem) SetTerrainChunk(tc *gterrain.TerrainChunk) {
 	sys.do <- func(sys *RenderSystem) {
 		sys.Terrain = tc
 	}

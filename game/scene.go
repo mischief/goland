@@ -148,7 +148,7 @@ func (s *Scene) AddSystem(sys System) {
 	defer s.m.Unlock()
 
 	s.wg.Add(1)
-  s.systems[sys.String()] = sys
+	s.systems[sys.String()] = sys
 }
 
 func (s *Scene) RemoveSystem(sys System) {
@@ -156,7 +156,7 @@ func (s *Scene) RemoveSystem(sys System) {
 	defer s.m.Unlock()
 
 	s.wg.Done()
-  delete(s.systems, sys.String())
+	delete(s.systems, sys.String())
 }
 
 // Request stop of all systems and wait for them to shut down

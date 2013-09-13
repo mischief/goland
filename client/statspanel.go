@@ -30,16 +30,16 @@ type StatsPanel struct {
 
 func NewStatsPanel(g *Game) *StatsPanel {
 	sp := &StatsPanel{
-		do: make(chan func(*StatsPanel), 1),
-    BasePanel: graphics.NewBasePanel(g.rsys),
-		g:  g,
+		do:        make(chan func(*StatsPanel), 1),
+		BasePanel: graphics.NewPanel(),
+		g:         g,
 	}
 
 	g.em.On("resize", func(i ...interface{}) {
 		ev := i[0].(termbox.Event)
 		sp.do <- func(sp *StatsPanel) {
-      sp.w = ev.Width
-      sp.h = ev.Height
+			sp.w = ev.Width
+			sp.h = ev.Height
 			sp.Resize(ev.Width, ev.Height)
 		}
 	})
@@ -79,7 +79,7 @@ func (sp *StatsPanel) Draw() {
 
 		str := fmt.Sprintf("%s", sp)
 		for i, r := range str {
-			sp.SetCell(i, 0, r, termbox.ColorBlue, termbox.ColorDefault)
+			sp.SetCell(i, 0, r, graphics.TextStyle.Fg, graphics.TextStyle.Bg)
 		}
 
 		sp.Buffered.Draw()

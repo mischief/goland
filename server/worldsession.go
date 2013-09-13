@@ -6,21 +6,23 @@ import (
 	"github.com/mischief/gochanio"
 	"github.com/mischief/goland/game"
 	"github.com/mischief/goland/game/gnet"
-	uuid "github.com/nu7hatch/gouuid"
-	"image"
+	"github.com/mischief/goland/game/gobj"
 	"net"
+	"sync/atomic"
 )
 
 type WorldSession struct {
-	con         net.Conn           // connection to the client
-	clientrchan <-chan interface{} // client's incoming message channel
-	clientwchan chan<- interface{} // client's outgoing message channel
-	ID          uuid.UUID          // client's id (account id?)
-	Username    string             // associated username
-	Pos         image.Point        // XXX: what's this for?
-	Player      *game.Actor         // object this client controls
-	nsys        *ServerNetworkSystem
-	gs          *GameServer // world reference
+	con         net.Conn             // connection to the client
+	clientrchan <-chan interface{}   // client's incoming message channel
+	clientwchan chan<- interface{}   // client's outgoing message channel
+	werr        <-chan error         // write error
+	rerr        <-chan error         // read error
+	Username    string               // associated username
+	Player      gobj.Object          // object this client controls
+	nsys        *ServerNetworkSystem // server's network system
+	gs          *GameServer          // world reference
+
+	alive int32
 }
 
 func (ws *WorldSession) String() string {
@@ -28,9 +30,6 @@ func (ws *WorldSession) String() string {
 }
 
 func NewWorldSession(gs *GameServer, nsys *ServerNetworkSystem, c net.Conn) *WorldSession {
-	var err error
-	var id *uuid.UUID
-
 	n := &WorldSession{
 		con:      c,
 		Username: "(unknown)",
@@ -38,70 +37,97 @@ func NewWorldSession(gs *GameServer, nsys *ServerNetworkSystem, c net.Conn) *Wor
 		gs:       gs,
 	}
 
-	n.clientrchan = chanio.NewReader(n.con)
-	n.clientwchan = chanio.NewWriter(n.con)
+	atomic.StoreInt32(&n.alive, 1)
 
-	if id, err = uuid.NewV4(); err != nil {
-		glog.Error("uuid.NewV4: ", err)
-		return nil
-	} else {
-		n.ID = *id
-	}
+	n.clientrchan, n.rerr = chanio.NewReader(n.con)
+	n.clientwchan, n.werr = chanio.NewWriter(n.con)
 
-  n.gs.em.On("newactor", func(i ...interface{}) {
-    actor := i[0].(*game.Actor)
-    n.SendPacket(gnet.NewPacket("newactor", actor.ID))
-  })
-  n.gs.em.On("propposadd", func(i ...interface{}) {
-    id := i[0].(string)
-    pos := i[1].(*game.Pos)
-    n.SendPacket(gnet.NewPacket("propposadd", gnet.PropPosAdd{id, <-pos.Get()}))
-  })
-  n.gs.em.On("propspriteadd", func(i ...interface{}) {
-    id := i[0].(string)
-    sprite := i[1].(*game.StaticSprite)
-    n.SendPacket(gnet.NewPacket("propspriteadd", gnet.PropSpriteAdd{id, sprite.GetCell()}))
-  })
+	n.gs.em.On("newactor", func(i ...interface{}) {
+		actor := i[0].(*game.Actor)
+		n.SendPacket(gnet.NewPacket("newactor", actor.ID))
+	})
+	n.gs.em.On("propposadd", func(i ...interface{}) {
+		id := i[0].(string)
+		pos := i[1].(*game.Pos)
+		n.SendPacket(gnet.NewPacket("propposadd", gnet.PropPosAdd{id, <-pos.Get()}))
+	})
+	n.gs.em.On("propspriteadd", func(i ...interface{}) {
+		/*
+			id := i[0].(string)
+			sprite := i[1].(*game.StaticSprite)
+			n.SendPacket(gnet.NewPacket("propspriteadd", gnet.PropSpriteAdd{id, sprite.GetCell()}))
+		*/
+	})
 
 	return n
 }
 
 // handle per-client packets
 func (ws *WorldSession) ReceiveProc() {
-	defer func() {
-		if err := recover(); err != nil {
-			glog.Warning("receiveproc: ", err)
-		}
-	}()
+	/*
+		defer func() {
+			if err := recover(); err != nil {
+				glog.Warning("receiveproc: ", err)
+			}
+		}()
+	*/
+	var err error
 
-	for x := range ws.clientrchan {
-		p, ok := x.(*gnet.Packet)
-		if !ok {
-			glog.Warning("receiveproc: bogus packet %#v from %s", x, ws.con.RemoteAddr())
-			continue
-		}
+	for atomic.LoadInt32(&ws.alive) == 1 && err == nil {
+		select {
+		case err = <-ws.rerr:
+			// we're done for
+			ws.gs.em.Emit("disconnect", ws)
 
-		// TODO: handle this client's packets
-		ws.nsys.HandlePacket(&ClientPacket{ws, p})
+			atomic.StoreInt32(&ws.alive, 0)
+			close(ws.clientwchan)
+
+			glog.Infof("receiveproc: channel closed %s", ws)
+
+		case payload := <-ws.clientrchan:
+			packet, ok := payload.(*gnet.Packet)
+
+			if !ok {
+				glog.Warning("receiveproc: bogus packet %#v from %s", payload, ws.con.RemoteAddr())
+				continue
+			}
+
+			ws.nsys.HandlePacket(&ClientPacket{ws, packet})
+		}
 	}
 
-	ws.gs.em.Emit("disconnect", ws)
-
-	glog.Infof("receiveproc: channel closed %s", ws)
 }
 
 // send packet to this client
-func (ws *WorldSession) SendPacket(pk *gnet.Packet) {
-	if glog.V(2) {
-		glog.Infof("sendpacket: %s %s", ws.con.RemoteAddr(), pk)
+func (ws *WorldSession) SendPacket(pk *gnet.Packet) error {
+	if atomic.LoadInt32(&ws.alive) == 1 {
+
+		if glog.V(2) {
+			glog.Infof("sendpacket: %s %s", ws.con.RemoteAddr(), pk)
+		}
+
+		defer func() {
+			if err := recover(); err != nil {
+				glog.Error("sendpacket: error: ", err)
+			}
+		}()
+
+		select {
+		case e := <-ws.werr:
+			return e
+		default:
+		}
+
+		ws.clientwchan <- pk
+
+		select {
+		case e := <-ws.werr:
+			return e
+		default:
+		}
 	}
 
-	defer func() {
-		if err := recover(); err != nil {
-			glog.Error("sendpacket: error: ", err)
-		}
-	}()
-	ws.clientwchan <- pk
+	return fmt.Errorf("not running")
 }
 
 func (ws *WorldSession) Update() {

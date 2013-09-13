@@ -7,32 +7,17 @@ import (
 	"github.com/golang/glog"
 	"github.com/mischief/goland/client/graphics"
 	"github.com/mischief/goland/game"
+	"github.com/mischief/goland/game/gid"
 	"github.com/mischief/goland/game/gnet"
+	"github.com/mischief/goland/game/gobj"
+	"github.com/mischief/goland/game/gterrain"
 	"github.com/mischief/goland/game/gutil"
 	"github.com/nsf/termbox-go"
+	"github.com/stevedonovan/luar"
 	"image"
-	//"io"
 	"net"
 	"reflect"
 	"time"
-)
-
-var (
-	CARDINALS = map[rune]string{
-	/*
-		'w': game.DIR_UP,
-		'k': game.DIR_UP,
-		'a': game.DIR_LEFT,
-		'h': game.DIR_LEFT,
-		's': game.DIR_DOWN,
-		'j': game.DIR_DOWN,
-		'd': game.DIR_RIGHT,
-		'l': game.DIR_RIGHT,
-		',': game.ACTION_ITEM_PICKUP,
-		'x': game.ACTION_ITEM_DROP,
-		'i': game.ACTION_ITEM_LIST_INVENTORY,
-	*/
-	}
 )
 
 type Game struct {
@@ -47,9 +32,11 @@ type Game struct {
 
 	closechan chan bool
 
+	me      *gobj.Object
+	objects map[gid.Gid]gobj.Object
 	//Objects *game.GameObjectMap
 	//Map     *game.MapChunk
-	terrain *game.TerrainChunk
+	terrain *gterrain.TerrainChunk
 
 	// config
 	config *gutil.LuaConfig
@@ -69,6 +56,7 @@ func NewGame(config *gutil.LuaConfig, lua *lua.State) *Game {
 	g := Game{
 		scene:     game.NewScene(),
 		em:        emission.NewEmitter(),
+		objects:   make(map[gid.Gid]gobj.Object),
 		config:    config,
 		lua:       lua,
 		closechan: make(chan bool, 1),
@@ -99,11 +87,22 @@ func (g *Game) Log(s string) {
 	glog.Info(s)
 }
 
+func (g *Game) SendChat(c string) {
+	g.nsys.SendPacket("Tchat", c)
+}
+
 func (g *Game) Quit() {
+	g.nsys.SendPacket("Tquit", nil)
 	g.closechan <- true
 }
 
 func (g *Game) Run() {
+	if err := g.Config(); err != nil {
+		glog.Fatalf("config: %s", err)
+	}
+
+	g.BindLua()
+
 	g.Start()
 
 	ticker := time.NewTicker(time.Second)
@@ -140,6 +139,12 @@ func (g *Game) Start() {
 		glog.Fatalf("movementsystem: %s", err)
 	}
 
+	// Intro panel
+	intro := g.IntroPanel()
+	intro.Title("intro").TitleStyle(graphics.TitleStyle)
+	g.rsys.AddPanel(intro)
+	g.rsys.PushActivePanelName("intro")
+
 	// camera
 	c := g.scene.Add("camera")
 	cpp := g.msys.Pos()
@@ -150,31 +155,65 @@ func (g *Game) Start() {
 	c.Add(cc)
 
 	// graphics panels
-  sp := NewStatsPanel(g)
-  sp.Title("stats").TitleStyle(graphics.TitleStyle)
-  sp.Pos(0.5, 0.05).Size(1.0, 0.1)
-  sp.SetLimits(image.Rect(0, 1, 0, 0))
-  sp.Activate()
-	g.rsys.AddPanel("stats", sp)
+	sp := NewStatsPanel(g)
+	sp.Title("stats").TitleStyle(graphics.TitleStyle)
+	sp.SizeFn(func(w, h int) image.Rectangle {
+		return image.Rect(1, 1, w-1, 2)
+	})
+	sp.Activate()
+	g.rsys.AddPanel(sp)
 
-  vp := NewViewPanel(g, c)
-  vp.Title("view").TitleStyle(graphics.TitleStyle)
-  vp.Pos(0.5, 0.5).Size(1.0, 0.55)
-  vp.Activate()
+	// viewport
+	vp := NewViewPanel(g, c)
+	vp.Title("view").TitleStyle(graphics.TitleStyle)
+	vp.SizeFn(func(w, h int) image.Rectangle {
+		return image.Rect(1, 3, w-1, h-8)
+	})
+	vp.Activate()
+	g.rsys.AddPanel(vp)
 
-	g.rsys.AddPanel("view", vp)
+	// log/chat
+	logp := NewLogPanel(g)
+	logp.Title("log").TitleStyle(graphics.TitleStyle)
+	logp.SizeFn(func(w, h int) image.Rectangle {
+		return image.Rect(1, h-7, w-1, h-3)
+	})
+	logp.Activate()
+	g.rsys.AddPanel(logp)
 
-	logpanel := NewLogPanel(g)
-	g.rsys.AddPanel("log", logpanel)
-	g.rsys.AddPanel("player", NewPlayerPanel(g))
-	g.rsys.AddPanel("chat", NewChatPanel(g, g.nsys))
-	g.rsys.AddPanel("console", NewConsolePanel(g))
+	// player stats
+	playerp := NewPlayerPanel(g)
+	playerp.Title("player").TitleStyle(graphics.TitleStyle)
+	playerp.SizeFn(func(w, h int) image.Rectangle {
+		return image.Rect(1, h-2, w/2, h-1)
+	})
+	playerp.Activate()
+	g.rsys.AddPanel(playerp)
 
-  qp := NewQuitPanel(g)
-  qp.Title("quit").TitleStyle(graphics.TitleStyle)
-  qp.Pos(0.5, 0.5).Size(0.15, 0.2)
+	// chat box
+	chatp := NewChatPanel(g)
+	chatp.Title("chat").TitleStyle(graphics.TitleStyle)
+	chatp.SizeFn(func(w, h int) image.Rectangle {
+		return image.Rect(w-1, h-2, w/2, h-1)
+	})
+	chatp.Activate()
+	g.rsys.AddPanel(chatp)
 
-	g.rsys.AddPanel("quit", qp)
+	// console
+	cons := NewConsolePanel(g)
+	cons.Title("console").TitleStyle(graphics.TitleStyle)
+	cons.SizeFn(func(w, h int) image.Rectangle {
+		return image.Rect(4, 4, w-4, h-4)
+	})
+	g.rsys.AddPanel(cons)
+
+	// quit dialog
+	qp := NewQuitPanel(g)
+	qp.Title("quit").TitleStyle(graphics.TitleStyle)
+	qp.SizeFn(func(w, h int) image.Rectangle {
+		return image.Rect(w/2-10, h/2-2, w/2+10, h/2+2)
+	})
+	g.rsys.AddPanel(qp)
 
 	// resize all panels
 	w, h := termbox.Size()
@@ -207,6 +246,42 @@ func (g *Game) Start() {
 	glog.Flush()
 }
 
+// load things from config
+// caller should probably bail on error
+// dont return error if the problematic option is not fatal, just print to log
+func (g *Game) Config() error {
+	glog.Info("reading config items")
+
+	if txtstyle, err := g.config.Get("theme.textfg", reflect.String); err == nil {
+		graphics.TextStyle.Fg = gutil.StrToTermboxAttr(txtstyle.(string))
+	} else {
+		glog.Infof("config: %s", err)
+	}
+	if tstyle, err := g.config.Get("theme.titlefg", reflect.String); err == nil {
+		graphics.TitleStyle.Fg = gutil.StrToTermboxAttr(tstyle.(string))
+	} else {
+		glog.Infof("config: %s", err)
+	}
+	if bstyle, err := g.config.Get("theme.borderfg", reflect.String); err == nil {
+		graphics.BorderStyle.Fg = gutil.StrToTermboxAttr(bstyle.(string))
+	} else {
+		glog.Infof("config: %s", err)
+	}
+	if pstyle, err := g.config.Get("theme.promptfg", reflect.String); err == nil {
+		graphics.PromptStyle.Fg = gutil.StrToTermboxAttr(pstyle.(string))
+	} else {
+		glog.Infof("config: %s", err)
+	}
+
+	return nil
+}
+
+func (g *Game) BindLua() {
+	luar.Register(g.lua, "", luar.Map{
+		"g": g,
+	})
+}
+
 func (g *Game) Login() error {
 
 	// login
@@ -233,48 +308,78 @@ func (g *Game) Login() error {
 }
 
 func (g *Game) SetupKeys() {
-	// ESC to quit
-	g.rsys.HandleKey(termbox.KeyEsc, func(ev termbox.Event) {
-		g.rsys.PushActivePanelName("quit")
-	})
 
-	// Enter to chat
-	g.rsys.HandleKey(termbox.KeyEnter, func(ev termbox.Event) {
-		g.rsys.PushActivePanelName("chat")
-	})
+	keyskey := "keys"
 
-	g.rsys.HandleRune('`', func(ev termbox.Event) {
-		g.rsys.PushActivePanelName("console")
-	})
-
-	// convert to func SetupDirections()
-	for k, v := range CARDINALS {
-		func(c rune, a string) {
-			g.rsys.HandleRune(c, func(_ termbox.Event) {
-				// lol collision
-				g.nsys.SendPacket("Taction", a)
-				/*
-					offset := game.DirTable[d]
-					g.pm.Lock()
-					defer g.pm.Unlock()
-					oldposx, oldposy := g.player.GetPos()
-					newpos := image.Pt(oldposx+offset.X, oldposy+offset.Y)
-					if g.Map.CheckCollision(nil, newpos) {
-						g.player.SetPos(newpos.X, newpos.Y)
-					}*/
-			})
-
-			/*
-				      scale := PLAYER_RUN_SPEED
-							upperc := unicode.ToUpper(c)
-							g.HandleRune(upperc, func(_ termbox.Event) {
-								for i := 0; i < scale; i++ {
-									g.Player.Move(d)
-								}
-							})
-			*/
-		}(k, v)
+	// gives us a map[string] interface{}
+	kbconf, err := g.config.RawGet(keyskey)
+	if err != nil {
+		glog.Infof("%q not found in config, no key bindings", keyskey)
+		return
 	}
+	keybinds := kbconf.(map[string]interface{})
+
+	keyactions := map[string]func(g *Game, a string){
+		// movement
+		"moveup": func(g *Game, a string) {
+			g.nsys.SendPacket("Tmove", a)
+		},
+		"moveleft": func(g *Game, a string) {
+			g.nsys.SendPacket("Tmove", a)
+		},
+		"movedown": func(g *Game, a string) {
+			g.nsys.SendPacket("Tmove", a)
+		},
+		"moveright": func(g *Game, a string) {
+			g.nsys.SendPacket("Tmove", a)
+		},
+
+		// actions
+		"pickup": func(g *Game, a string) {
+			g.nsys.SendPacket("Taction", a)
+		},
+		"drop": func(g *Game, a string) {
+			g.nsys.SendPacket("Taction", a)
+		},
+
+		// make this pop up a dialog
+		"inventory": func(g *Game, a string) {
+			g.nsys.SendPacket("Taction", a)
+		},
+
+		// dialogs
+		"quit": func(g *Game, a string) {
+			g.rsys.PushActivePanelName(a)
+		},
+		"chat": func(g *Game, a string) {
+			g.rsys.PushActivePanelName(a)
+		},
+		"console": func(g *Game, a string) {
+			g.rsys.PushActivePanelName(a)
+		},
+	}
+
+	for key, actconf := range keybinds {
+		act := actconf.(string)
+		glog.Infof("binding %q to %q", key, act)
+
+		// check if it's just a rune. if not, it's a 'key' like esc or space
+		if len(key) == 1 {
+			g.rsys.HandleRune(rune(key[0]), func(ev termbox.Event) {
+				keyactions[act](g, act)
+			})
+		} else {
+			termkey := gutil.StrToKey(key)
+			if termkey == termbox.Key(0) {
+				glog.Infof("invalid key %s, not binding", key)
+			} else {
+				g.rsys.HandleKey(termkey, func(ev termbox.Event) {
+					keyactions[act](g, act)
+				})
+			}
+		}
+	}
+
 }
 
 func (g *Game) End() {
@@ -287,6 +392,7 @@ func (g *Game) End() {
 }
 
 // deal with gnet.Packets received from the server
+// XXX: old, remove
 func (g *Game) HandlePacket(pk *gnet.Packet) {
 	defer func() {
 		if err := recover(); err != nil {
@@ -324,19 +430,19 @@ func (g *Game) HandlePacket(pk *gnet.Packet) {
 
 		// Rnewobject: new object we need to track
 	case "Rnewobject":
-		obj := pk.Data[0].(game.Object)
+		obj := pk.Data[0].(gobj.Object)
 
-		name := fmt.Sprintf("%s%d", obj.GetName(), obj.GetID())
+		//name := fmt.Sprintf("%s%d", obj.GetName(), obj.GetID())
 
-		a := g.scene.Add(name)
+		//a := g.scene.Add(name)
 
 		pos := g.msys.Pos()
 		pos.Set(image.Pt(obj.GetPos()))
 
-		sp := game.NewStaticSprite(name, obj.GetGlyph())
+		//sp := game.NewStaticSprite(name, obj.GetGlyph())
 
-		a.Add(pos)
-		a.Add(sp)
+		//a.Add(pos)
+		//a.Add(sp)
 
 		// Rdelobject: some object went away
 	case "Rdelobject":

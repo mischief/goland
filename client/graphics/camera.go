@@ -92,7 +92,7 @@ func (c *Camera) GetTransformer() Transformer {
 type Containsf func(pt image.Point) bool
 
 // check if world tile pt is inside camera bounds c.Rect
-func (c *Camera) ContainsWorldPoint(pt image.Point) Containsf {
+func (c *Camera) GetContainsf() Containsf {
 	ch := make(chan Containsf)
 	c.do <- func(c *Camera) {
 		containsf := func(pt image.Point) bool {

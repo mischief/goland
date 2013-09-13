@@ -4,13 +4,13 @@ package main
 import (
 	"fmt"
 	"github.com/aarzilli/golua/lua"
+	"github.com/chuckpreslar/emission"
 	"github.com/golang/glog"
 	"github.com/mischief/goland/game"
-	//"github.com/mischief/goland/game/gnet"
+	"github.com/mischief/goland/game/gobj"
+	"github.com/mischief/goland/game/gterrain"
 	"github.com/mischief/goland/game/gutil"
 	"github.com/stevedonovan/luar"
-	//"image"
-	"github.com/chuckpreslar/emission"
 	"net"
 	"os"
 	"os/signal"
@@ -22,7 +22,7 @@ type GameServer struct {
 	em    *emission.Emitter
 
 	msys *game.MovementSystem
-  tsys *game.TerrainSystem
+	tsys *gterrain.TerrainSystem
 	nsys *ServerNetworkSystem
 
 	closechan chan bool
@@ -31,16 +31,14 @@ type GameServer struct {
 	Listener   net.Listener       // acceptor of client connections
 	PacketChan chan *ClientPacket // channel where clients packets arrive
 
-	*game.DefaultSubject
-
 	Sessions map[int]*WorldSession //client list
 
-	Objects *game.GameObjectMap
+	Objects *gobj.GameObjectMap
 
 	config *gutil.LuaConfig
 
-	lua *lua.State
-  debug bool
+	lua   *lua.State
+	debug bool
 }
 
 func NewGameServer(config *gutil.LuaConfig, ls *lua.State) (*GameServer, error) {
@@ -64,7 +62,7 @@ func NewGameServer(config *gutil.LuaConfig, ls *lua.State) (*GameServer, error) 
 }
 
 func (gs *GameServer) Debug() bool {
-  return gs.debug
+	return gs.debug
 }
 
 func (gs *GameServer) Run() {
@@ -109,9 +107,7 @@ func (gs *GameServer) Start() {
 		glog.Fatalf("movementsystem: %s", err)
 	}
 
-  if gs.tsys, err = game.NewTerrainSystem(gs.scene); err != nil {
-		glog.Fatalf("terrainsystem: %s", err)
-  }
+	gs.tsys = gterrain.NewTerrainSystem()
 
 	if gs.nsys, err = NewServerNetworkSystem(gs, gs.scene, listen); err != nil {
 		glog.Fatalf("servernetworksystem: %s", err)
@@ -134,7 +130,7 @@ func (gs *GameServer) End() {
 	glog.Info("systems stopped")
 }
 
-func (gs *GameServer) AddObject(obj game.Object) {
+func (gs *GameServer) AddObject(obj gobj.Object) {
 	glog.Infof("adding object %s", obj)
 
 	// tell clients about new object
@@ -162,12 +158,11 @@ func (gs *GameServer) BindLua() {
 		"gs": gs,
 	})
 
-  luar.Register(gs.lua, "sys", luar.Map{
-    "msys": gs.msys,
-    "tsys": gs.tsys,
-    "nsys": gs.nsys,
-  })
-
+	luar.Register(gs.lua, "sys", luar.Map{
+		"msys": gs.msys,
+		"tsys": gs.tsys,
+		"nsys": gs.nsys,
+	})
 
 	// add our script path here..
 	pkgpathscript := `package.path = package.path .. ";" .. gs.GetScriptPath() --";../?.lua"`
@@ -357,22 +352,22 @@ func Action_Inventory(gs *GameServer, cp *ClientPacket) {
 
 // Top level handler for Taction packets
 func (gs *GameServer) HandleActionPacket(cp *ClientPacket) {
-  /*
-	action := cp.Data[0].(game.Action)
-	p := cp.Client.Player
+	/*
+		action := cp.Data[0].(game.Action)
+		p := cp.Client.Player
 
-	_, isdir := game.DirTable[action]
-	if isdir {
-		gs.HandleMovementPacket(cp)
-	}
+		_, isdir := game.DirTable[action]
+		if isdir {
+			gs.HandleMovementPacket(cp)
+		}
 
-	// check if this action is in our Actions table, if so execute it
-	if f, ok := Actions[action]; ok {
-		f(gs, cp)
-	}
+		// check if this action is in our Actions table, if so execute it
+		if f, ok := Actions[action]; ok {
+			f(gs, cp)
+		}
 
-	gs.nsys.SendPacketAll("Raction", p)
-  */
+		gs.nsys.SendPacketAll("Raction", p)
+	*/
 }
 
 // Handle Directionals

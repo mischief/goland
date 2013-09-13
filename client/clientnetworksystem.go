@@ -5,6 +5,7 @@ import (
 	"github.com/mischief/gochanio"
 	"github.com/mischief/goland/game"
 	"github.com/mischief/goland/game/gnet"
+	"github.com/mischief/goland/game/gterrain"
 	"net"
 	"sync/atomic"
 	"time"
@@ -20,6 +21,8 @@ type ClientNetworkSystem struct {
 	servercon   net.Conn           // server tcp connection
 	serverrchan <-chan interface{} // server read channel
 	serverwchan chan<- interface{} // server write channel
+	rerr        <-chan error       // read errors
+	werr        <-chan error       // write errors
 }
 
 func NewClientNetworkSystem(g *Game, s *game.Scene, server string) (*ClientNetworkSystem, error) {
@@ -31,7 +34,7 @@ func NewClientNetworkSystem(g *Game, s *game.Scene, server string) (*ClientNetwo
 	}
 
 	if err := game.StartSystem(sys, true); err != nil {
-		return nil, err
+		return sys, err
 	}
 	sys.scene.AddSystem(sys)
 	sys.Syn()
@@ -39,7 +42,7 @@ func NewClientNetworkSystem(g *Game, s *game.Scene, server string) (*ClientNetwo
 }
 
 func (sys ClientNetworkSystem) String() string {
-  return "clientnetwork"
+	return "clientnetwork"
 }
 
 func (sys *ClientNetworkSystem) DoOne() error {
@@ -98,13 +101,8 @@ func (sys *ClientNetworkSystem) Setup() error {
 	}
 
 	sys.servercon = con
-	sys.serverrchan = chanio.NewReader(sys.servercon)
-	sys.serverwchan = chanio.NewWriter(sys.servercon)
-
-  sys.g.em.On("packet", func(i ...interface{}) {
-    pkt := i[0].(*gnet.Packet)
-    sys.onpacket(pkt)
-  })
+	sys.serverrchan, sys.rerr = chanio.NewReader(sys.servercon)
+	sys.serverwchan, sys.werr = chanio.NewWriter(sys.servercon)
 
 	glog.Info("setup: complete")
 	return nil
@@ -128,6 +126,12 @@ func (sys *ClientNetworkSystem) Update(delta time.Duration) {
 loop:
 	for {
 		select {
+		case werr := <-sys.werr:
+			glog.Errorf("write error: %s", werr)
+			sys.Stop()
+		case rerr := <-sys.rerr:
+			glog.Errorf("read error: %s", rerr)
+			sys.Stop()
 		case i := <-sys.serverrchan:
 			pkt, ok := i.(*gnet.Packet)
 			if !ok {
@@ -138,7 +142,7 @@ loop:
 				glog.Infof("update: got packet %s", pkt)
 			}
 
-      sys.g.em.Emit("packet", pkt)
+			sys.onpacket(pkt)
 
 		default:
 			break loop
@@ -147,32 +151,33 @@ loop:
 }
 
 func (sys *ClientNetworkSystem) SendPacket(tag string, data interface{}) {
-	sys.do <- func(sys *ClientNetworkSystem) {
-		pkt := gnet.NewPacket(tag, data)
-		glog.Infof("sendpacket: sending %s", pkt)
-		sys.serverwchan <- pkt
+	if sys.IsRunning() {
+		sys.do <- func(sys *ClientNetworkSystem) {
+			pkt := gnet.NewPacket(tag, data)
+			glog.Infof("sendpacket: sending %s", pkt)
+			sys.serverwchan <- pkt
+		}
 	}
 }
 
 func (sys *ClientNetworkSystem) onpacket(pkt *gnet.Packet) {
-    switch pkt.Tag {
-    case "Rgetterrain":
-      mapname := pkt.Data[0].(string)
-      ter := pkt.Data[1].(*game.TerrainChunk)
-      sys.g.rsys.SetTerrainChunk(ter)
-      glog.Infof("loaded map %s", mapname)
-    case "newactor":
-      id := pkt.Data[0].(string)
-      glog.Info("adding actor ", id)
-      _ = sys.scene.Add(id)
-    case "propposadd":
-      idpos := pkt.Data[0].(*gnet.PropPosAdd)
-      pos := sys.g.msys.Pos()
-      pos.Set(idpos.Pos)
-      sys.scene.Actors[idpos.Id].Add(pos)
-    case "propspriteadd":
-      idsprite := pkt.Data[0].(*gnet.PropSpriteAdd)
-      sprite := game.NewStaticSprite(idsprite.Id, idsprite.Sprite)
-      sys.scene.Actors[idsprite.Id].Add(sprite)
-    }
+	switch pkt.Tag {
+	case "Rgetterrain":
+		ter := pkt.Data[0].(*gterrain.TerrainChunk)
+		sys.g.rsys.SetTerrainChunk(ter)
+		glog.Infof("loaded map %s", ter)
+	case "newactor":
+		id := pkt.Data[0].(string)
+		glog.Info("adding actor ", id)
+		_ = sys.scene.Add(id)
+	case "propposadd":
+		idpos := pkt.Data[0].(*gnet.PropPosAdd)
+		pos := sys.g.msys.Pos()
+		pos.Set(idpos.Pos)
+		sys.scene.Actors[idpos.Id].Add(pos)
+	case "propspriteadd":
+		//idsprite := pkt.Data[0].(*gnet.PropSpriteAdd)
+		//sprite := game.NewStaticSprite(idsprite.Id, idsprite.Sprite)
+		//sys.scene.Actors[idsprite.Id].Add(sprite)
+	}
 }

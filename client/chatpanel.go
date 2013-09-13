@@ -2,37 +2,34 @@ package main
 
 import (
 	"bytes"
-	"github.com/errnoh/termbox/panel"
 	"github.com/mischief/goland/client/graphics"
 	"github.com/nsf/termbox-go"
-	"image"
 	"time"
 	"unicode/utf8"
 )
 
 // ChatPanel is a panel which runs the in-game chat and command input.
 type ChatPanel struct {
-	do              chan func(*ChatPanel)
-	*panel.Buffered // Panel
+	do chan func(*ChatPanel)
+	*graphics.BasePanel
 
 	buf bytes.Buffer // Buffer for keyboard input
-
-	enabled int32 // are we enabled or not?
 
 	g    *Game
 	nsys *ClientNetworkSystem
 }
 
-func NewChatPanel(g *Game, nsys *ClientNetworkSystem) *ChatPanel {
+func NewChatPanel(g *Game) *ChatPanel {
 	cp := &ChatPanel{
-		do: make(chan func(*ChatPanel), 10),
-		g:  g,
+		do:        make(chan func(*ChatPanel), 10),
+		BasePanel: graphics.NewPanel(),
+		g:         g,
 	}
 
 	g.em.On("resize", func(i ...interface{}) {
 		ev := i[0].(termbox.Event)
 		cp.do <- func(cp *ChatPanel) {
-			cp.resize(ev.Width, ev.Height)
+			cp.Resize(ev.Width, ev.Height)
 		}
 	})
 
@@ -44,7 +41,7 @@ func (c *ChatPanel) Draw() {
 		c.Clear()
 		str := "> " + c.buf.String()
 		for i, r := range str {
-			c.SetCell(i, 0, r, termbox.ColorBlue, termbox.ColorDefault)
+			c.SetCell(i, 0, r, graphics.PromptStyle.Fg, graphics.PromptStyle.Bg)
 		}
 		c.Buffered.Draw()
 	}
@@ -90,7 +87,7 @@ func (cp *ChatPanel) HandleInput(ev termbox.Event) {
 				case termbox.KeyEnter:
 					// input confirmed, send it
 					if cp.buf.Len() > 0 {
-						cp.g.nsys.SendPacket("Tchat", cp.buf.String())
+						cp.g.SendChat(cp.buf.String())
 						cp.buf.Reset()
 					}
 
@@ -105,10 +102,4 @@ func (cp *ChatPanel) HandleInput(ev termbox.Event) {
 		}
 	}
 
-}
-
-func (cp *ChatPanel) resize(w, h int) {
-	r := image.Rect(w-1, h-2, w/2, h-1)
-	cp.Buffered = panel.NewBuffered(r, graphics.BorderStyle)
-	cp.SetTitle("chat", graphics.TitleStyle)
 }

@@ -6,30 +6,24 @@ import (
 	"time"
 )
 
-var (
-  qfg = termbox.ColorBlue
-  qbg = termbox.ColorDefault
-)
-
 // QuitPanel is responsible for handling game quitting.
 type QuitPanel struct {
 	do                  chan func(*QuitPanel)
-	*graphics.BasePanel       // Panel
-	active              int32 // are we enabled or not?
+	*graphics.BasePanel // Panel
 	g                   *Game
 }
 
 func NewQuitPanel(g *Game) *QuitPanel {
 	qp := &QuitPanel{
-		do: make(chan func(*QuitPanel), 10),
-    BasePanel: graphics.NewBasePanel(g.rsys),
-		g:  g,
+		do:        make(chan func(*QuitPanel), 10),
+		BasePanel: graphics.NewPanel(),
+		g:         g,
 	}
 
 	g.em.On("resize", func(i ...interface{}) {
 		ev := i[0].(termbox.Event)
 		qp.do <- func(qp *QuitPanel) {
-      qp.Resize(ev.Width, ev.Height)
+			qp.Resize(ev.Width, ev.Height)
 		}
 	})
 
@@ -41,10 +35,10 @@ func (qp *QuitPanel) Draw() {
 		qp.Clear()
 		q := "quit now?"
 		ent := "enter to confirm"
-		esc := "esc to cancel"
-		graphics.WriteCenteredLine(qp, q, 0, qfg, qbg)
-		graphics.WriteCenteredLine(qp, ent, 2, qfg, qbg)
-		graphics.WriteCenteredLine(qp, esc, 3, qfg, qbg)
+		esc := "space to cancel"
+		graphics.WriteCenteredLine(qp, q, 0, graphics.TextStyle.Fg, graphics.TextStyle.Bg)
+		graphics.WriteCenteredLine(qp, ent, 2, graphics.TextStyle.Fg, graphics.TextStyle.Bg)
+		graphics.WriteCenteredLine(qp, esc, 3, graphics.TextStyle.Fg, graphics.TextStyle.Bg)
 
 		qp.BasePanel.Draw()
 	}

@@ -2,17 +2,18 @@ package main
 
 import (
 	"github.com/aarzilli/golua/lua"
-	"github.com/mischief/goland/game"
+	"github.com/mischief/goland/game/gid"
+	"github.com/mischief/goland/game/gobj"
 	"github.com/mischief/goland/game/gutil"
 	"github.com/nsf/termbox-go"
 	"github.com/stevedonovan/luar"
+	"image"
 	"unicode/utf8"
-  "image"
 )
 
 // make a new GameObject
-func LuaNewGameObject(name string) game.Object {
-	return game.NewGameObject(name)
+func LuaNewGameObject(id gid.Gid, name string) *gobj.GameObject {
+	return gobj.NewGameObject(id, name)
 }
 
 var LuaGameObjectLib luar.Map = map[string]interface{}{
@@ -32,9 +33,8 @@ func NewGlyph(ch string, fg string, bg string) termbox.Cell {
 
 var LuaUtilLib luar.Map = map[string]interface{}{
 	"NewGlyph": NewGlyph,
-  "NewStaticSprite": game.NewStaticSprite,
-  "IDGen": game.IDGen,
-  "Pt": image.Pt,
+	//	"NewStaticSprite": game.NewStaticSprite,
+	"Pt": image.Pt,
 }
 
 func Lua_OpenObjectLib(L *lua.State) bool {

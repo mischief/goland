@@ -15,7 +15,7 @@ func init() {
 }
 
 type Packet struct {
-	Tag  string      // packet tag identifying the operation
+	Tag  string        // packet tag identifying the operation
 	Data []interface{} // packet payload
 }
 

@@ -9,35 +9,35 @@ import (
 // The system interface is for parts of the game which wish to implement logic
 // for the properties of actors.
 type System interface {
-  // Return a static name for this system
-  String() string
+	// Return a static name for this system
+	String() string
 
-  // Execute one pending task
+	// Execute one pending task
 	DoOne() error
 
-  // Syn waits until the System has finished all tasks queed before calling Syn
+	// Syn waits until the System has finished all tasks queed before calling Syn
 	Syn()
 
-  // Running will set the run state of the System
+	// Running will set the run state of the System
 	Running(bool)
 
-  // IsRunning checks if the System is running
+	// IsRunning checks if the System is running
 	IsRunning() bool
 
-  // Stop should halt the System
+	// Stop should halt the System
 	Stop()
 
-  // Frequency at which Tick is called
+	// Frequency at which Tick is called
 	Frequency() time.Duration
 
-  // Setup any relevant data for the System
+	// Setup any relevant data for the System
 	Setup() error
 
-  // Tick queues any regularly scheduled tasks for the System
-  // at a rate of Frequency
+	// Tick queues any regularly scheduled tasks for the System
+	// at a rate of Frequency
 	Tick(time.Duration)
 
-  // TearDown should cleanup any resources the System uses
+	// TearDown should cleanup any resources the System uses
 	TearDown()
 }
 
@@ -48,7 +48,7 @@ func StartSystem(sys System, lockOsThread bool) (err error) {
 	if sys.IsRunning() {
 		return fmt.Errorf("startsystem: system %s already running", sys)
 	} else {
-    errch := make(chan error)
+		errch := make(chan error)
 		go func() {
 			if lockOsThread {
 				runtime.LockOSThread()
@@ -57,11 +57,11 @@ func StartSystem(sys System, lockOsThread bool) (err error) {
 			sys.Running(true)
 
 			if e := sys.Setup(); e != nil {
-        errch <- e
+				errch <- e
 				return
 			}
 
-      errch <- nil
+			errch <- nil
 
 			for sys.IsRunning() {
 				sys.DoOne()
@@ -70,10 +70,10 @@ func StartSystem(sys System, lockOsThread bool) (err error) {
 			sys.TearDown()
 		}()
 
-    if e := <-errch; e != nil {
-      err = e
-      return
-    }
+		if e := <-errch; e != nil {
+			err = e
+			return
+		}
 
 		sys.Syn()
 

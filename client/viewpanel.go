@@ -1,10 +1,9 @@
 package main
 
 import (
-	"github.com/errnoh/termbox/panel"
 	"github.com/golang/glog"
-	"github.com/mischief/goland/game"
 	"github.com/mischief/goland/client/graphics"
+	"github.com/mischief/goland/game"
 	"github.com/nsf/termbox-go"
 	"image"
 	"time"
@@ -25,7 +24,7 @@ type ViewPanel struct {
 
 	width int
 
-  g *Game
+	g    *Game
 	rsys *graphics.RenderSystem
 
 	cam *game.Actor
@@ -33,30 +32,23 @@ type ViewPanel struct {
 
 func NewViewPanel(g *Game, cam *game.Actor) *ViewPanel {
 	vp := &ViewPanel{
-		do:   make(chan func(*ViewPanel), 10),
-    BasePanel: graphics.NewBasePanel(g.rsys),
-    g: g,
-		rsys: g.rsys,
-		cam:  cam,
+		do:        make(chan func(*ViewPanel), 10),
+		BasePanel: graphics.NewPanel(),
+		g:         g,
+		rsys:      g.rsys,
+		cam:       cam,
 	}
 
 	vp.g.em.On("resize", func(i ...interface{}) {
 		ev := i[0].(termbox.Event)
 		vp.do <- func(vp *ViewPanel) {
-      rw, rh := vp.Resize(ev.Width, ev.Height)
-      vp.width = ev.Width
-	    cam := vp.cam.Get(game.PropCamera).(*graphics.Camera)
-	    cam.Resize(image.Pt(rw, rh))
+			rw, rh := vp.Resize(ev.Width, ev.Height)
+			vp.width = ev.Width
+			cam := vp.cam.Get(game.PropCamera).(*graphics.Camera)
+			cam.Resize(image.Pt(rw, rh))
 		}
 	})
 	return vp
-}
-
-func (vp *ViewPanel) resize(w, h int) {
-	r := image.Rect(VIEW_START_X, VIEW_START_Y, w-VIEW_PAD_X, h-VIEW_PAD_Y)
-	//vp.width = r.Dx()
-	vp.Buffered = panel.NewBuffered(r, graphics.BorderStyle)
-	vp.SetTitle("view", graphics.TitleStyle)
 }
 
 func (vp *ViewPanel) Update(delta time.Duration) {
@@ -97,10 +89,11 @@ func (vp *ViewPanel) Draw() {
 
 			for x := inter.Min.X; x < inter.Max.X; x++ {
 				for y := inter.Min.Y; y < inter.Max.Y; y++ {
-					pos := trans(image.Pt(x, y))
+					pos := image.Pt(x, y)
+					spos := trans(pos)
 					//vp.unsafesetcell(pos.X, pos.Y, vp.rsys.terrain.Cells[x][y].Cell)
-					c := vp.rsys.Terrain.Cells[x][y].Cell
-					vp.SetCell(pos.X, pos.Y, c.Ch, c.Fg, c.Bg)
+					c := vp.rsys.Terrain.At(pos).Data().Gfx.Cell()
+					vp.SetCell(spos.X, spos.Y, c.Ch, c.Fg, c.Bg)
 				}
 			}
 
@@ -109,17 +102,18 @@ func (vp *ViewPanel) Draw() {
 		// FIXME: check if objects are in our camera bounding box
 		for _, actor := range vp.g.scene.Find(game.PropPos, game.PropStaticSprite) {
 			pos := actor.Get(game.PropPos).(*game.Pos)
-			sp := actor.Get(game.PropStaticSprite).(*game.StaticSprite)
+			//sp := actor.Get(game.PropStaticSprite).(*game.StaticSprite)
 			ipt := <-pos.Get()
 			screenpos := trans(ipt)
-			c := sp.GetCell()
+			c := termbox.Cell{Ch: 'X'} //sp.GetCell()
 
 			if glog.V(3) {
 				glog.Infof("%s (%v) at %s drawn at %s", actor, c, ipt, screenpos)
 				glog.Infof("cam %s", cam)
 			}
 
-			vp.unsafesetcell(screenpos.X, screenpos.Y, c)
+			//vp.unsafesetcell(screenpos.X, screenpos.Y, c)
+			vp.SetCell(screenpos.X, screenpos.Y, c.Ch, c.Fg, c.Bg)
 		}
 
 		// draw terrain

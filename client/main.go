@@ -20,7 +20,7 @@ func init() {
 
 func main() {
 	flag.Parse()
-  defer glog.Flush()
+	defer glog.Flush()
 
 	lua := gutil.LuaInit()
 	if lua == nil {
