@@ -6,6 +6,9 @@
 --     items.load({loot.make(1, 194, 254)})
 --
 
+-- Add something to the package path to include the itemdb.
+package.path = package.path .. ";../game/data/?.lua"
+
 function file_load(location, filename)
     local path = location .. "/" .. filename
     local f = assert(io.open(path, "r"))
@@ -16,8 +19,8 @@ function file_load(location, filename)
     return c
 end
 
-local db_string = file_load('../game/data', 'loot.json')
-local DB = Json.Decode(db_string)
+itemdb = require('itemdb')
+local DB = itemdb.DB
 
 local get_item = function(DB, itemid)
     return DB.items[itemid + 1]
