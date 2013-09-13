@@ -23,7 +23,7 @@ itemdb = require('itemdb')
 local DB = itemdb.DB
 
 local get_item = function(DB, itemid)
-    return DB.items[itemid + 1]
+    return DB[itemid + 1]
 end
 -- creates an item entry to place itemid on the map at (posx, posy)
 local make = function(itemid, posx, posy)
