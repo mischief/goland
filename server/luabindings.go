@@ -6,7 +6,7 @@ import (
 	"github.com/mischief/goland/game/gutil"
 	"github.com/nsf/termbox-go"
 	"github.com/stevedonovan/luar"
-  "unicode/utf8"
+	"unicode/utf8"
 )
 
 // make a new GameObject
@@ -22,7 +22,7 @@ func NewGlyph(ch string, fg string, bg string) termbox.Cell {
 	newfg := gutil.StrToTermboxAttr(fg)
 	newbg := gutil.StrToTermboxAttr(bg)
 
-  r, _ := utf8.DecodeRuneInString(ch)
+	r, _ := utf8.DecodeRuneInString(ch)
 
 	newch := termbox.Cell{Ch: r, Fg: newfg, Bg: newbg}
 
