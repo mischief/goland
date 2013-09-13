@@ -59,7 +59,9 @@ func NewGameServer(config *gutil.LuaConfig, ls *lua.State) (*GameServer, error) 
 	gs.Add(new(PacketLogger), "logger")
 
 	// connect processes
-	gs.Connect("router", "Log", "logger", "In", make(chan *ClientPacket))
+	// Used to be this, was throwing an error about too many arguments to gs.Graph.Connect:
+	// gs.Connect("router", "Log", "logger", "In", make(chan *ClientPacket))
+	gs.Connect("router", "Log", "logger", "In")
 
 	// map external ports
 	gs.MapInPort("In", "router", "In")

@@ -1,4 +1,5 @@
-//Item is any construct which can be stored in a Unit's inventory
+// Item is any construct which can be stored in a Unit's inventory
+// can be equipment.
 package game
 
 import (
@@ -11,7 +12,7 @@ func init() {
 }
 
 type Item struct {
-	Object
+	Object          // The game object?
 
 	Desc     string
 	Weight   int
