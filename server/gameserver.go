@@ -24,6 +24,7 @@ type GameServer struct {
 	msys *game.MovementSystem
 	tsys *gterrain.TerrainSystem
 	nsys *ServerNetworkSystem
+	fsys *GameFs
 
 	closechan chan bool
 	sigchan   chan os.Signal
@@ -112,6 +113,15 @@ func (gs *GameServer) Start() {
 	if gs.nsys, err = NewServerNetworkSystem(gs, gs.scene, listen); err != nil {
 		glog.Fatalf("servernetworksystem: %s", err)
 	}
+
+	gs.fsys = NewGameFs(gs)
+
+	go func() {
+		err := gs.fsys.Run()
+		if err != nil {
+			glog.Error(err)
+		}
+	}()
 
 	// load assets
 	glog.Info("loading assets")
