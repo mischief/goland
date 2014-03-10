@@ -59,6 +59,12 @@ func NewGameServer(config *gutil.LuaConfig, ls *lua.State) (*GameServer, error) 
 		gs.debug = debug.(bool)
 	}
 
+	// objects setup
+	gs.Objects = gobj.NewGameObjectMap()
+
+	// lua state
+	gs.lua = ls
+
 	return gs, nil
 }
 

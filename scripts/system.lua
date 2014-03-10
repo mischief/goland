@@ -7,6 +7,7 @@
 --gameserver:ANYTHING()
 
 -- item handling stuff?
+loot = require('loot')
 items = require('items')
 coll = require('collision')
 
