@@ -21,6 +21,7 @@ flags = {
 
 blocks = {
   {'block', 122, 130, '¤', 'red', ''},
+  {'block', 1, 1, '¤', 'red', ''},
   {'block', 124, 128, '¤', 'red', ''},
   {'block', 124, 132, '¤', 'blue', ''},
   {'block', 126, 130, '¤', 'blue', ''},
@@ -106,7 +107,7 @@ fns.load = function()
   --gs.LoadMap('../server/map')
   --items.load(flags)
   --items.load(blocks)
-  gs.LoadMap('../server/map')
+  --gs.LoadMap('../server/map')
   items.load(theloot)
   items.load(flags)
   items.load(blocks)

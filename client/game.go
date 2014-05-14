@@ -148,7 +148,7 @@ func (g *Game) Start() {
 	// camera
 	c := g.scene.Add("camera")
 	cpp := g.msys.Pos()
-	cpp.Set(image.Pt(0, 0))
+	cpp.Set(image.Pt(128, 128))
 	c.Add(cpp)
 	cc := g.rsys.Cam(c.ID)
 	cc.SetCenter(<-cpp.Get()) // is this necessary?

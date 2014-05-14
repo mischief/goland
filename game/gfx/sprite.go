@@ -14,6 +14,10 @@ type StaticSprite struct {
 	cell termbox.Cell
 }
 
+func NewStaticSprite(cell termbox.Cell) *StaticSprite {
+	return &StaticSprite{cell}
+}
+
 func (s StaticSprite) String() string {
 	return fmt.Sprintf("frame 0 of 0 current %c", s.cell.Ch)
 }
@@ -57,10 +61,23 @@ var gfx = map[string]Sprite{
 	"floor": &StaticSprite{termbox.Cell{Ch: '.', Fg: termbox.ColorGreen}},
 	"wall":  &StaticSprite{termbox.Cell{Ch: '#', Fg: termbox.ColorWhite, Bg: termbox.ColorBlack | termbox.AttrUnderline | termbox.AttrBold}},
 
-	"door": &AnimatedSprite{
-		frames: []termbox.Cell{
-			termbox.Cell{Ch: '+', Fg: termbox.ColorYellow},
-			termbox.Cell{Ch: '/', Fg: termbox.ColorYellow},
+	/*
+		"door": &AnimatedSprite{
+			frames: []termbox.Cell{
+				termbox.Cell{Ch: '+', Fg: termbox.ColorYellow},
+				termbox.Cell{Ch: '/', Fg: termbox.ColorYellow},
+			},
 		},
-	},
+	*/
+
+	"flag":  &StaticSprite{termbox.Cell{Ch: '⚑', Fg: termbox.ColorRed}},
+	"human": &StaticSprite{termbox.Cell{Ch: '@', Fg: termbox.ColorWhite}},
+	/*
+		"human": &AnimatedSprite{
+			frames: []termbox.Cell{
+				termbox.Cell{Ch: '@', Fg: termbox.ColorDefault, Bg: termbox.ColorBlack},
+				termbox.Cell{Ch: '@', Fg: termbox.ColorYellow, Bg: termbox.ColorWhite},
+			},
+		},
+	*/
 }

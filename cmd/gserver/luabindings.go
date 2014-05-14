@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/aarzilli/golua/lua"
+	"github.com/mischief/goland/game/gfx"
 	"github.com/mischief/goland/game/gid"
 	"github.com/mischief/goland/game/gobj"
 	"github.com/mischief/goland/game/gutil"
@@ -34,12 +35,19 @@ func NewGlyph(ch string, fg string, bg string) termbox.Cell {
 var LuaUtilLib luar.Map = map[string]interface{}{
 	"NewGlyph": NewGlyph,
 	//	"NewStaticSprite": game.NewStaticSprite,
-	"Pt": image.Pt,
+	"Pt":    image.Pt,
+	"IDGen": gid.Gen,
+}
+
+var LuaGfxLib luar.Map = map[string]interface{}{
+	"Get": gfx.Get,
+	"New": gfx.NewStaticSprite,
 }
 
 func Lua_OpenObjectLib(L *lua.State) bool {
 	luar.Register(L, "object", LuaGameObjectLib)
 	luar.Register(L, "util", LuaUtilLib)
+	luar.Register(L, "gfx", LuaGfxLib)
 
 	return true
 }

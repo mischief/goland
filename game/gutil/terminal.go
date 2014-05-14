@@ -31,6 +31,16 @@ func StrToTermboxAttr(str string) termbox.Attribute {
 	return attrmap["default"]
 }
 
+func TermboxAttrToStr(attr termbox.Attribute) string {
+	for k, v := range attrmap {
+		if v == attr {
+			return k
+		}
+	}
+	return "default"
+}
+
+
 var keymap = map[string]termbox.Key{
 	"enter": termbox.KeyEnter,
 	"esc":   termbox.KeyEsc,

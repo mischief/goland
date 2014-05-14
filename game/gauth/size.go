@@ -1,0 +1,11 @@
+package gauth
+
+const (
+	ANAMELEN  = 28
+	DOMLEN    = 48
+	DESKEYLEN = 7
+	CHALLEN   = 8
+
+	TICKREQLEN = (3 * ANAMELEN) + CHALLEN + DOMLEN + 1
+	TICKLEN    = CHALLEN + (2 * ANAMELEN) + DESKEYLEN + 1
+)

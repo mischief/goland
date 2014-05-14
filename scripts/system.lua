@@ -16,7 +16,7 @@ collide = coll.collide
 -- load our only map..
 map = require('map1')
 
---map.load()
+map.load()
 
 -- etc
 sys.tsys.LoadFile('map1', '../server/map')
