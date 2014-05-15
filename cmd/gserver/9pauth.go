@@ -81,12 +81,13 @@ func NewP9SK1Authenticator(gs *GameServer) *p9sk1auth {
 }
 
 func (*p9sk1auth) AuthCheck(fid *srv.Fid, afid *srv.Fid, aname string) error {
-	aux := afid.Aux.(*AuthFid)
-	glog.Infof("AuthCheck: fid %#v afid %#v aname %s aux %#v", fid, afid, aname, aux)
+	glog.Infof("AuthCheck: fid %#v afid %#v aname %s", fid, afid, aname)
 
 	if afid == nil {
 		return srv.Eperm
 	}
+
+	aux := afid.Aux.(*AuthFid)
 
 	if afid.Type&p.QTAUTH == 0 || aux == nil {
 		return srv.Ebaduse

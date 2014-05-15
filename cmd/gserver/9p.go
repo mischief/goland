@@ -4,8 +4,8 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"reflect"
 	"net"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -160,8 +160,8 @@ type GameFs struct {
 func NewGameFs(gs *GameServer) *GameFs {
 	gfs := &GameFs{
 		p9sk1auth: NewP9SK1Authenticator(gs),
-		gs:    gs,
-		conns: make(map[*srv.Conn]p.User),
+		gs:        gs,
+		conns:     make(map[*srv.Conn]p.User),
 	}
 
 	return gfs
@@ -422,7 +422,7 @@ func (gfs *GameFs) Read(req *srv.Req) {
 			rp := gfs.fsmkdir(off, 0)
 			if rp.Mode&p.DMDIR == 0 {
 				rp.Uid = req.Fid.User.Name()
-				rp.Gid = req.Fid.User.Groups()[0].Name()
+				rp.Gid = req.Fid.User.Name()
 			}
 			return rp
 		}
@@ -459,7 +459,7 @@ func (gfs *GameFs) Read(req *srv.Req) {
 			dir := gfs.fsmkdir(Qobj, uint64(obj.GetID()))
 			if owner := gfs.gs.Owners[obj.GetID()]; owner != nil {
 				dir.Uid = owner.Name()
-				dir.Gid = owner.Groups()[0].Name()
+				dir.Gid = owner.Name()
 			}
 			return dir
 		}

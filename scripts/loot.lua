@@ -7,7 +7,7 @@
 --
 
 -- Add something to the package path to include the itemdb.
-package.path = package.path .. ";../game/data/?.lua"
+package.path = package.path .. ";../../game/data/?.lua"
 
 function file_load(location, filename)
     local path = location .. "/" .. filename
