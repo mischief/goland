@@ -104,7 +104,7 @@ func (a *authcli) ticketrequest(tr *gauth.Ticketreq) {
 		goto fail
 	}
 
-	if hkey, err = findkey(a.p9, string(tr.Authid[:])); err != nil {
+	if hkey, err = findkey(a.p9, string(tr.Hostid[:])); err != nil {
 		goto fail
 	}
 
