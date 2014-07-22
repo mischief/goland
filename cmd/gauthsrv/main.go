@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/binary"
 	"flag"
@@ -36,6 +37,13 @@ func mkkey() []byte {
 	return k
 }
 
+func btos(b []byte) string {
+	if i := bytes.IndexByte(b, byte(0)); i != -1 {
+		return string(b[:i])
+	}
+	return string(b[:])
+}
+
 func findkey(cl *clnt.Clnt, user string) ([]byte, error) {
 	f, err := cl.FOpen(fmt.Sprintf("%s/key", user), p.OREAD)
 	if err != nil {
@@ -60,7 +68,7 @@ type authcli struct {
 
 func (a *authcli) terr(err error) {
 	a.con.Write([]byte{gauth.AuthErr})
-	fmt.Fprintf(a.con, "%s", err)
+	fmt.Fprintf(a.con, "%64.64s", err)
 }
 
 func (a *authcli) serve() {
@@ -100,11 +108,11 @@ func (a *authcli) ticketrequest(tr *gauth.Ticketreq) {
 	var err error
 	var t gauth.Ticket
 
-	if akey, err = findkey(a.p9, string(tr.Authid[:])); err != nil {
+	if akey, err = findkey(a.p9, btos(tr.Authid[:])); err != nil {
 		goto fail
 	}
 
-	if hkey, err = findkey(a.p9, string(tr.Hostid[:])); err != nil {
+	if hkey, err = findkey(a.p9, btos(tr.Hostid[:])); err != nil {
 		goto fail
 	}
 

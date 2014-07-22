@@ -46,15 +46,22 @@ type Ticketreq struct {
 	Uid     [ANAMELEN]byte
 }
 
+func btos(b []byte) string {
+	if i := bytes.IndexByte(b, byte(0)); i != -1 {
+		return string(b[:i])
+	}
+	return string(b[:])
+}
+
 func (t Ticketreq) String() string {
 	typ := typenametab[int(t.Type)]
 	if typ == "" {
 		typ = "unknown"
 	}
-	return typ + " " + string(t.Authid[:]) + "@" + string(t.Authdom[:]) +
+	return typ + " " + btos(t.Authid[:]) + "@" + btos(t.Authdom[:]) +
 		" chal " + fmt.Sprintf("%x", t.Chal[:]) +
-		" hostid " + string(t.Hostid[:]) +
-		" uid " + string(t.Uid[:])
+		" hostid " + btos(t.Hostid[:]) +
+		" uid " + btos(t.Uid[:])
 }
 
 type Ticket struct {
