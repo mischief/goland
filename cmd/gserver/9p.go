@@ -509,6 +509,8 @@ func (gfs *GameFs) Read(req *srv.Req) {
 		dirread9p(req, zonegen, nil)
 		return
 	case Qoctl:
+		req.RespondRread([]byte{})
+		return
 	case Qobjid:
 		if tc.Offset == 0 {
 			obj := gfs.gs.Objects.FindObjectByID(fid.id)
